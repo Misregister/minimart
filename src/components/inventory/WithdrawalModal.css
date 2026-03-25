@@ -1,0 +1,19 @@
+
+.withdrawal-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.product-summary {
+    background: var(--bg-secondary);
+    padding: 1rem;
+    border-radius: var(--radius-md);
+    margin-bottom: 0.5rem;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}

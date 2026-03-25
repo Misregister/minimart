@@ -1,0 +1,74 @@
+.parked-bills-container {
+    min-height: 200px;
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.empty-parked {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 3rem 0;
+    color: var(--text-secondary);
+}
+
+.parked-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.parked-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    background-color: var(--bg-hover);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+    transition: all var(--transition-fast);
+}
+
+.parked-item:hover {
+    border-color: var(--primary);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-sm);
+}
+
+.parked-item-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.parked-time {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.parked-details {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.95rem;
+}
+
+.parked-total {
+    font-weight: 700;
+    color: var(--primary);
+    margin-left: 0.5rem;
+}
+
+.parked-item-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.parked-item-actions .text-danger:hover {
+    background-color: rgba(239, 68, 68, 0.1);
+}

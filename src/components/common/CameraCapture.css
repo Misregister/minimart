@@ -1,0 +1,112 @@
+.camera-capture-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    align-items: center;
+    width: 100%;
+}
+
+.capture-actions {
+    display: flex;
+    gap: 1rem;
+    width: 100%;
+}
+
+.capture-actions button {
+    flex: 1;
+}
+
+.camera-error {
+    color: #ef4444;
+    font-size: 0.9rem;
+    background-color: #fee2e2;
+    padding: 0.5rem;
+    border-radius: var(--radius-sm);
+    width: 100%;
+    text-align: center;
+}
+
+.camera-view {
+    position: relative;
+    width: 100%;
+    max-height: 400px;
+    background-color: black;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+}
+
+.camera-preview {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.camera-controls {
+    position: absolute;
+    bottom: 1rem;
+    left: 0;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 2rem;
+}
+
+.capture-btn {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background-color: rgba(255, 255, 255, 0.3);
+    border: 2px solid white;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.shutter-inner {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background-color: white;
+}
+
+.close-camera-btn {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: rgba(0, 0, 0, 0.5) !important;
+    color: white !important;
+    padding: 0.5rem !important;
+}
+
+.image-preview-container {
+    position: relative;
+    width: 100%;
+    max-height: 300px;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+}
+
+.image-preview {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background-color: var(--bg-secondary);
+    display: block;
+}
+
+.preview-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.7), transparent);
+    padding: 1rem;
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+}

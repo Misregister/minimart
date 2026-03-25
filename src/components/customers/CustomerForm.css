@@ -1,0 +1,12 @@
+.customer-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.textarea-field {
+    height: auto;
+    padding: 0.75rem;
+    resize: vertical;
+    min-height: 80px;
+}

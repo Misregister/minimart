@@ -1,0 +1,30 @@
+.card {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    /* Modern curve */
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+    transition: all var(--transition-normal);
+}
+
+.card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+}
+
+.card-padding-none {
+    padding: 0;
+}
+
+.card-padding-sm {
+    padding: 0.75rem;
+}
+
+.card-padding-md {
+    padding: 1.5rem;
+}
+
+.card-padding-lg {
+    padding: 2rem;
+}

@@ -1,0 +1,78 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to get current user data
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // Checking if the user is authenticated (can be cashier or owner)
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Checking if the user has the 'owner' role
+    function isOwner() {
+      return isAuthenticated() && getUserData().role == 'owner';
+    }
+
+    // Products: Public read, but write/update requires Auth
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    // Orders: Public can create (place order) and get (track). Only Auth can list/update/delete.
+    match /orders/{orderId} {
+      allow get: if true;
+      allow create: if true 
+        && request.resource.data.total >= 0 // Prevent negative/zero manipulation
+        && request.resource.data.items.size() > 0 // Must have items
+        && request.resource.data.status == 'pending'; // Must start as pending
+      allow list, update, delete: if isAuthenticated(); // Staff manages orders
+    }
+    
+    // Settings: Public read (for storefront status), write requires Auth
+    match /settings/{document} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+    
+    // Users: Users can read their own profile, Owners can read all.
+    match /users/{userId} {
+      allow read: if request.auth.uid == userId || isOwner();
+      // Allow creation of own profile (default cashier) on first login
+      allow create: if request.auth.uid == userId && request.resource.data.role == 'cashier';
+      // Only owners can update roles or delete users
+      allow update, delete: if isOwner();
+    }
+
+    // Shifts: Authenticated users can manage shifts
+    match /shifts/{shiftId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Transactions: Authenticated users can manage transactions
+    match /transactions/{transactionId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Customer Display: POS writes (Auth), Screen reads (Public)
+    match /system/{document} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    // Customers: Authenticated users can manage customers
+    match /customers/{customerId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Default deny all other collections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

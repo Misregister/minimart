@@ -1,0 +1,229 @@
+/* OrderManager.css */
+.order-manager-container {
+    padding: 24px;
+    height: 100%;
+    background-color: #f3f4f6;
+    overflow-x: auto;
+}
+
+.kanban-board {
+    display: flex;
+    gap: 24px;
+    height: calc(100vh - 120px);
+    padding-bottom: 24px;
+}
+
+.kanban-column {
+    flex: 1;
+    min-width: 300px;
+    background: #f9fafb;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid #e5e7eb;
+}
+
+.column-header {
+    padding: 16px;
+    border-bottom: 1px solid #e5e7eb;
+    background: white;
+    border-radius: 12px 12px 0 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.column-title {
+    font-weight: 700;
+    color: #374151;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.column-count {
+    background: #e5e7eb;
+    padding: 2px 8px;
+    border-radius: 99px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #4b5563;
+}
+
+.column-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.order-card {
+    background: white;
+    border-radius: 8px;
+    padding: 16px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    border: 1px solid #e5e7eb;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.order-card:hover {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
+}
+
+.order-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 0.85rem;
+    color: #6b7280;
+}
+
+.order-customer {
+    font-weight: 600;
+    color: #111827;
+    margin-bottom: 4px;
+}
+
+.order-address {
+    font-size: 0.85rem;
+    color: #4b5563;
+    margin-bottom: 12px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.order-items-preview {
+    font-size: 0.85rem;
+    color: #6b7280;
+    margin-bottom: 12px;
+    padding: 8px;
+    background: #f9fafb;
+    border-radius: 6px;
+}
+
+.order-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px dashed #e5e7eb;
+}
+
+.order-total {
+    font-weight: 700;
+    color: #3b82f6;
+}
+
+.action-btn {
+    width: 100%;
+    padding: 8px;
+    border-radius: 6px;
+    border: none;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 8px;
+    transition: background 0.2s;
+}
+
+.btn-prepare {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.btn-prepare:hover {
+    background: #bfdbfe;
+}
+
+.btn-ship {
+    background: #fef3c7;
+    color: #b45309;
+}
+
+.btn-ship:hover {
+    background: #fde68a;
+}
+
+.btn-complete {
+    background: #d1fae5;
+    color: #047857;
+}
+
+.btn-complete:hover {
+    background: #a7f3d0;
+}
+
+.slip-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    font-size: 10px;
+    background: #ecfdf5;
+    color: #047857;
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid #a7f3d0;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+    .order-manager-container {
+        padding: 16px;
+        overflow-y: auto !important;
+        /* Force scroll on mobile body */
+        height: auto;
+    }
+
+    .kanban-board {
+        flex-direction: column;
+        height: auto;
+        gap: 16px;
+        padding-bottom: 80px;
+        /* Space for bottom nav if any */
+    }
+
+    .kanban-column {
+        min-width: 100%;
+        height: auto;
+        max-height: none;
+        /* Let it flow naturally */
+        border: none;
+        background: transparent;
+    }
+
+    .column-header {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        margin-bottom: 8px;
+    }
+
+    .column-content {
+        padding: 4px;
+        /* Reduce padding */
+        max-height: none;
+        /* No internal scroll, use main page scroll */
+        overflow: visible;
+    }
+
+    .order-card {
+        margin-bottom: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    }
+
+    /* Make buttons larger for touch */
+    .action-btn {
+        padding: 14px;
+        font-size: 1rem;
+    }
+}

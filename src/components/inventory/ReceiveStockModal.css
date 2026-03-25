@@ -1,0 +1,136 @@
+.receive-stock-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.product-info-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+    background-color: var(--bg-hover);
+    border-radius: var(--radius-md);
+}
+
+.product-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: var(--radius-md);
+    background-color: var(--primary);
+    color: var(--primary-foreground);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.product-info-header h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.product-info-header .barcode {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    font-family: monospace;
+}
+
+.product-info-header .current-stock {
+    font-size: 0.9rem;
+    color: var(--text-main);
+    margin-top: 0.25rem;
+}
+
+.pack-info-card {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.1), rgba(34, 197, 94, 0.1));
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(37, 99, 235, 0.2);
+}
+
+.pack-info-card svg {
+    color: var(--primary);
+}
+
+.pack-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.pack-value {
+    font-size: 1rem;
+    color: var(--text-main);
+}
+
+.pack-value strong {
+    color: var(--primary);
+    font-size: 1.25rem;
+}
+
+.receive-input-section {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.unit-selector {
+    display: flex;
+    background-color: var(--bg-hover);
+    padding: 0.25rem;
+    border-radius: var(--radius-md);
+}
+
+.unit-selector button {
+    flex: 1;
+    padding: 0.75rem;
+    border-radius: var(--radius-sm);
+    font-weight: 500;
+    color: var(--text-secondary);
+    transition: all var(--transition-fast);
+}
+
+.unit-selector button.active {
+    background-color: var(--primary);
+    color: var(--primary-foreground);
+    box-shadow: var(--shadow-sm);
+}
+
+.calculation-preview {
+    background-color: var(--bg-main);
+    border-radius: var(--radius-md);
+    padding: 1rem;
+    border: 1px solid var(--border);
+}
+
+.calc-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.calc-row.total {
+    border-top: 1px solid var(--border);
+    margin-top: 0.5rem;
+    padding-top: 0.75rem;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.calc-result {
+    font-weight: 600;
+    color: var(--success);
+}
+
+.calc-row.total .calc-result {
+    font-size: 1.1rem;
+    color: var(--primary);
+}

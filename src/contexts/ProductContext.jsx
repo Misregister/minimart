@@ -178,9 +178,9 @@ export const ProductProvider = ({ children }) => {
     }, []);
 
     const updateProductOrder = React.useCallback(async (orderedItems) => {
-        for (const item of orderedItems) {
-            await supabase.from('products').update({ posIndex: item.posIndex }).eq('id', item.id);
-        }
+        // Optimization: Use a single bulk upsert instead of 1000+ individual updates
+        const { error } = await supabase.from('products').upsert(orderedItems);
+        if (error) throw error;
     }, []);
 
     const bulkUpdateVisibilityByImage = React.useCallback(async () => {

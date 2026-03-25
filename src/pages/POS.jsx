@@ -91,8 +91,10 @@ const POS = () => {
                 posIndex: index
             }));
             await updateProductOrder(updates);
+            alert("บันทึกตำแหน่งสินค้าเรียบร้อยแล้วครับ! ✨");
             setIsReorderMode(false);
-        } catch {
+        } catch (error) {
+            console.error("Save reorder error:", error);
             alert(t('error'));
         }
     };

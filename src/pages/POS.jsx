@@ -85,9 +85,11 @@ const POS = () => {
 
     const saveReorder = async () => {
         try {
-            // Map new indices
+            // Map new indices - Include 'name' because it's a NOT NULL field in the DB
+            // and the 'upsert' operation requires all NOT NULL fields to be present.
             const updates = localOrderedProducts.map((p, index) => ({
                 id: p.id,
+                name: p.name,
                 posIndex: index
             }));
             await updateProductOrder(updates);
@@ -95,7 +97,7 @@ const POS = () => {
             setIsReorderMode(false);
         } catch (error) {
             console.error("Save reorder error:", error);
-            alert(t('error'));
+            alert("บันทึกไม่สำเร็จ: " + (error.message || "เกิดข้อผิดพลาดทางเทคนิค"));
         }
     };
 

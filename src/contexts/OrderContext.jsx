@@ -54,9 +54,12 @@ export const OrderProvider = ({ children }) => {
                         setNewOrderAlert(true);
                     }
                 } else if (payload.eventType === 'UPDATE') {
-                    setOrders(prev => prev.map(o => o.id === payload.new.id ? payload.new : o));
-                    const hasPending = orders.some(o => o.id === payload.new.id ? payload.new.status === 'pending' : o.status === 'pending');
-                    setPendingOrdersActive(hasPending);
+                    setOrders(prev => {
+                        const updated = prev.map(o => o.id === payload.new.id ? payload.new : o);
+                        const hasPending = updated.some(order => order.status === 'pending');
+                        setPendingOrdersActive(hasPending);
+                        return updated;
+                    });
                 } else if (payload.eventType === 'DELETE') {
                     setOrders(prev => prev.filter(o => o.id !== payload.old.id));
                 }
@@ -66,7 +69,7 @@ export const OrderProvider = ({ children }) => {
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [user, orders]);
+    }, [user]);
 
     const createOrder = async (orderData) => {
         // Generate a readable ID: W-YYMMDD-XXXX (Supabase uses UUID by default but we can keep custom ID for readable tracking if needed)

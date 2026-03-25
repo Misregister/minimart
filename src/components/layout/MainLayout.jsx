@@ -1,6 +1,6 @@
 import React from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, ShoppingCart, Package, Users, Settings, LogOut, Globe, LogOut as LogOutIcon, History, Menu, X, Monitor, Truck, Volume2, VolumeX } from 'lucide-react';
+import { LayoutDashboard, ShoppingCart, Package, Users, Settings, LogOut, Globe, LogOut as LogOutIcon, History, Menu, X, Monitor, Truck, Volume2, VolumeX, TrendingUp } from 'lucide-react';
 import { useProduct } from '../../contexts/ProductContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -13,7 +13,7 @@ const MainLayout = () => {
     const { user, logout, isCashier } = useAuth();
     const { language, toggleLanguage, t } = useLanguage();
     const { isShiftOpen } = useShift();
-    const { products } = useProduct();
+    const { products, connectionStatus } = useProduct();
     const { pendingOrdersActive } = useOrder();
     const [isCloseShiftOpen, setIsCloseShiftOpen] = React.useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
@@ -127,6 +127,13 @@ const MainLayout = () => {
                     </NavLink>
 
                     {!isCashier && (
+                        <NavLink to="/insights" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+                            <TrendingUp size={20} />
+                            <span>วิเคราะห์ข้อมูล</span>
+                        </NavLink>
+                    )}
+
+                    {!isCashier && (
                         <NavLink to="/shift-history" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
                             <History size={20} />
                             <span>{t('shiftHistory')}</span>
@@ -176,14 +183,36 @@ const MainLayout = () => {
                     </div>
                     <div className="header-actions">
                         {/* Cloud Status Indicator */}
-                        {/* Cloud Status Indicator */}
-                        <div className="status-indicator" title={products?.length > 0 ? t('connected') : t('disconnected')}>
-                            {products?.length > 0 ? (
-                                <Globe size={20} color="var(--success)" />
-                            ) : (
-                                <Globe size={20} color="var(--danger)" />
-                            )}
-                        </div>
+                        {(() => {
+                            const status = connectionStatus || 'connecting';
+                            const statusConfig = {
+                                connected: { color: 'var(--success, #10b981)', label: t('connected'), animate: false },
+                                syncing: { color: 'var(--success, #10b981)', label: 'กำลังซิงค์...', animate: true },
+                                updating: { color: '#f59e0b', label: 'กำลังอัปเดต...', animate: true },
+                                cached: { color: '#f59e0b', label: 'ใช้ข้อมูลแคช', animate: false },
+                                connecting: { color: '#f59e0b', label: 'กำลังเชื่อมต่อ...', animate: true },
+                                error: { color: 'var(--danger, #ef4444)', label: 'เชื่อมต่อล้มเหลว', animate: false },
+                                disconnected: { color: 'var(--danger, #ef4444)', label: t('disconnected'), animate: false }
+                            };
+                            const cfg = statusConfig[status] || statusConfig.connecting;
+                            return (
+                                <div className="status-indicator" title={`${cfg.label} (${products?.length || 0} สินค้า)`} style={{ position: 'relative' }}>
+                                    <Globe size={20} color={cfg.color} style={cfg.animate ? { animation: 'spin-slow 2s linear infinite' } : {}} />
+                                    {cfg.animate && (
+                                        <span style={{
+                                            position: 'absolute', top: -2, right: -2,
+                                            width: 8, height: 8, borderRadius: '50%',
+                                            background: cfg.color,
+                                            animation: 'pulse-dot 1.5s ease-in-out infinite'
+                                        }} />
+                                    )}
+                                    <style>{`
+                                        @keyframes spin-slow { to { transform: rotate(360deg); } }
+                                        @keyframes pulse-dot { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.6); } }
+                                    `}</style>
+                                </div>
+                            );
+                        })()}
 
 
 

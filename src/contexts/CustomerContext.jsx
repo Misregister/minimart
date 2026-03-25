@@ -18,16 +18,33 @@ export const CustomerProvider = ({ children }) => {
     // Initial Data Load & Real-time Listener
     useEffect(() => {
         const fetchCustomers = async () => {
-            const { data, error } = await supabase
-                .from('customers')
-                .select('*')
-                .order('name');
-            
-            if (error) {
-                console.error("Error fetching customers:", error);
-            } else {
-                setCustomers(data || []);
+            let allCustomers = [];
+            let from = 0;
+            const step = 1000;
+            let hasMore = true;
+
+            while (hasMore) {
+                const { data, error } = await supabase
+                    .from('customers')
+                    .select('*')
+                    .order('name')
+                    .range(from, from + step - 1);
+                
+                if (error) {
+                    console.error("Error fetching customers:", error);
+                    hasMore = false;
+                } else if (data) {
+                    allCustomers = [...allCustomers, ...data];
+                    if (data.length < step) {
+                        hasMore = false;
+                    } else {
+                        from += step;
+                    }
+                } else {
+                    hasMore = false;
+                }
             }
+            setCustomers(allCustomers || []);
             setLoading(false);
         };
 

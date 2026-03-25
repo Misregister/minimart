@@ -30,13 +30,11 @@ const PriceLabelPrinting = () => {
         if (filterMode === 'all' && !searchTerm.trim()) return [];
         let source = products;
         if (filterMode === 'updated') {
-            // eslint-disable-next-line react-hooks/purity
             const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
-            source = source.filter(p => new Date(p.updatedAt?.seconds * 1000 || p.updatedAt) > cutoff);
+            source = source.filter(p => p.updatedAt && new Date(p.updatedAt) > cutoff);
         } else if (filterMode === 'new') {
-            // eslint-disable-next-line react-hooks/purity
             const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000);
-            source = source.filter(p => new Date(p.createdAt?.seconds * 1000 || p.createdAt) > cutoff);
+            source = source.filter(p => p.createdAt && new Date(p.createdAt) > cutoff);
         }
         if (searchTerm.trim()) {
             const lower = searchTerm.toLowerCase();

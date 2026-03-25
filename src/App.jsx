@@ -28,6 +28,7 @@ const Customers = React.lazy(() => import('./pages/Customers'));
 
 // Direct import for reliability
 import CustomerDisplay from './pages/CustomerDisplay';
+const Insights = React.lazy(() => import('./pages/Insights'));
 const ShiftHistory = React.lazy(() => import('./pages/ShiftHistory'));
 const Settings = React.lazy(() => import('./pages/Settings'));
 const OrderManager = React.lazy(() => import('./pages/OrderManager'));
@@ -146,64 +147,91 @@ class GlobalErrorBoundary extends React.Component {
   }
 }
 
+// Wrapper that provides data contexts only after authentication
+const AuthenticatedDataProviders = ({ children }) => (
+  <ShiftProvider>
+    <ProductProvider>
+      <CartProvider>
+        <CustomerProvider>
+          <OrderProvider>
+            {children}
+          </OrderProvider>
+        </CustomerProvider>
+      </CartProvider>
+    </ProductProvider>
+  </ShiftProvider>
+);
+
 function App() {
   return (
     <LanguageProvider>
       <SettingsProvider>
         <AuthProvider>
-          <ShiftProvider>
-            <ProductProvider>
-              <CartProvider>
-                <CustomerProvider>
-                  <OrderProvider>
-                    <StoreCartProvider>
-                      <BrowserRouter>
-                        <GlobalErrorBoundary>
-                          <React.Suspense fallback={<PageLoader />}>
-                            <Routes>
-                              {/* Auth Routes */}
-                              <Route element={<AuthLayout />}>
-                                <Route path="/login" element={<Login />} />
-                              </Route>
+          <BrowserRouter>
+            <GlobalErrorBoundary>
+              <React.Suspense fallback={<PageLoader />}>
+                <Routes>
+                  {/* Auth Routes - No data providers needed */}
+                  <Route element={<AuthLayout />}>
+                    <Route path="/login" element={<Login />} />
+                  </Route>
 
-                              {/* Protected Application Routes */}
-                              <Route element={
-                                <ProtectedRoute>
-                                  <MainLayout />
-                                </ProtectedRoute>
-                              }>
-                                <Route path="/dashboard" element={<Dashboard />} />
-                                <Route path="/pos" element={<POS />} />
-                                <Route path="/inventory" element={<Inventory />} />
-                                <Route path="/print-labels" element={<PriceLabelPrinting />} />
+                  {/* Store Routes - Use own lightweight data loading */}
+                  <Route path="/store" element={
+                    <ProductProvider>
+                      <StoreCartProvider>
+                        <OrderProvider>
+                          <Storefront />
+                        </OrderProvider>
+                      </StoreCartProvider>
+                    </ProductProvider>
+                  } />
+                  <Route path="/store/checkout" element={
+                    <ProductProvider>
+                      <StoreCartProvider>
+                        <OrderProvider>
+                          <StoreCheckout />
+                        </OrderProvider>
+                      </StoreCartProvider>
+                    </ProductProvider>
+                  } />
+                  <Route path="/store/tracking/:orderId" element={
+                    <ProductProvider>
+                      <OrderProvider>
+                        <OrderTracking />
+                      </OrderProvider>
+                    </ProductProvider>
+                  } />
 
-                                <Route path="/customers" element={<Customers />} />
-                                <Route path="/shift-history" element={<ShiftHistory />} />
-                                <Route path="/orders" element={<OrderManager />} />
-                                <Route path="/settings" element={<Settings />} />
-                              </Route>
+                  {/* Standalone Pages */}
+                  <Route path="/customer-display" element={<CustomerDisplay />} />
 
-                              {/* Standalone Pages */}
-                              {/* Directly imported to avoid Lazy Load Chunk Errors on Critical Display */}
-                              <Route path="/customer-display" element={<CustomerDisplay />} />
+                  {/* Protected Application Routes - Full data providers */}
+                  <Route element={
+                    <ProtectedRoute>
+                      <AuthenticatedDataProviders>
+                        <MainLayout />
+                      </AuthenticatedDataProviders>
+                    </ProtectedRoute>
+                  }>
+                    <Route path="/dashboard" element={<Dashboard />} />
+                    <Route path="/pos" element={<POS />} />
+                    <Route path="/inventory" element={<Inventory />} />
+                    <Route path="/print-labels" element={<PriceLabelPrinting />} />
+                    <Route path="/customers" element={<Customers />} />
+                    <Route path="/insights" element={<Insights />} />
+                    <Route path="/shift-history" element={<ShiftHistory />} />
+                    <Route path="/orders" element={<OrderManager />} />
+                    <Route path="/settings" element={<Settings />} />
+                  </Route>
 
-                              <Route path="/store" element={<Storefront />} />
-                              <Route path="/store/checkout" element={<StoreCheckout />} />
-                              <Route path="/store/tracking/:orderId" element={<OrderTracking />} />
-
-                              {/* Default Redirect */}
-                              <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                              <Route path="*" element={<Navigate to="/dashboard" replace />} />
-                            </Routes>
-                          </React.Suspense>
-                        </GlobalErrorBoundary>
-                      </BrowserRouter>
-                    </StoreCartProvider>
-                  </OrderProvider>
-                </CustomerProvider>
-              </CartProvider>
-            </ProductProvider>
-          </ShiftProvider>
+                  {/* Default Redirect */}
+                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                  <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                </Routes>
+              </React.Suspense>
+            </GlobalErrorBoundary>
+          </BrowserRouter>
         </AuthProvider>
       </SettingsProvider>
     </LanguageProvider>

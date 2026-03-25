@@ -157,11 +157,6 @@ const CustomerDisplayContent = () => {
                         </div>
                     )}
 
-                    {/* Logo/Footer */}
-                    <div className="brand-footer">
-                        <img src="/logo.png" onError={(e) => e.target.style.display = 'none'} alt="Logo" />
-                        <span>ยินดีต้อนรับ</span>
-                    </div>
 
                     {/* Indicators */}
                     <div className="slide-indicators">

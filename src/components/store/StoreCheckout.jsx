@@ -46,7 +46,7 @@ const StoreCheckout = () => {
     const [paymentMethod, setPaymentMethod] = useState('cod'); // 'cod' or 'transfer'
     const [slipFile, setSlipFile] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [deliveryTime, setDeliveryTime] = useState('');
+    const [deliveryTime, setDeliveryTime] = useState('17:00');
     const [isMapOpen, setIsMapOpen] = useState(false);
 
     const [isCheckingSlip, setIsCheckingSlip] = useState(false);
@@ -308,7 +308,7 @@ const StoreCheckout = () => {
                         <Clock size={18} /> รอบเวลาจัดส่งน้ำดื่ม
                     </div>
                     <div className="payment-options delivery-grid">
-                        {['09:00', '13:00', '18:00'].map(time => (
+                        {['17:00'].map(time => (
                             <div
                                 key={time}
                                 className={`payment-card ${deliveryTime === time ? 'active' : ''}`}

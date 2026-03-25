@@ -322,8 +322,9 @@ const Inventory = () => {
                                     <th>{t('category')}</th>
                                     <th>{t('price')}</th>
                                     <th>{t('stock')}</th>
-                                    <th>Store</th>
-                                    <th>แนะนำ</th>
+                                    <th style={{ textAlign: 'center' }}>POS</th>
+                                    <th style={{ textAlign: 'center' }}>Store</th>
+                                    <th style={{ textAlign: 'center' }}>แนะนำ</th>
                                     <th>{t('zone')}</th>
                                     <th style={{ textAlign: 'right' }}>{t('actions')}</th>
                                 </tr>
@@ -365,7 +366,20 @@ const Inventory = () => {
                                                 {product.stock || 0}
                                             </span>
                                         </td>
-                                        <td>
+                                        <td style={{ textAlign: 'center' }}>
+                                            <input
+                                                type="checkbox"
+                                                checked={!!product.showInPOS}
+                                                style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                                                onChange={(e) => {
+                                                    updateProduct(product.id, {
+                                                        showInPOS: e.target.checked
+                                                    });
+                                                }}
+                                                onClick={(e) => e.stopPropagation()}
+                                            />
+                                        </td>
+                                        <td style={{ textAlign: 'center' }}>
                                             <input
                                                 type="checkbox"
                                                 checked={!!product.showInStore}
@@ -378,7 +392,7 @@ const Inventory = () => {
                                                 onClick={(e) => e.stopPropagation()}
                                             />
                                         </td>
-                                        <td>
+                                        <td style={{ textAlign: 'center' }}>
                                             <button
                                                 onClick={(e) => {
                                                     e.stopPropagation();

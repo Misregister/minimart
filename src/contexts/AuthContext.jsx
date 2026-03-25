@@ -60,7 +60,7 @@ export const AuthProvider = ({ children }) => {
 
     const fetchProfile = async (supabaseUser) => {
         try {
-            const { data: profile, fetchError } = await supabase
+            const { data: profile, error: fetchError } = await supabase
                 .from('profiles')
                 .select('*')
                 .eq('id', supabaseUser.id)
@@ -68,11 +68,13 @@ export const AuthProvider = ({ children }) => {
 
             if (fetchError && fetchError.code === 'PGRST116') {
                 // No profile: Create default
+                const ownerEmails = ['qwaser9801@gmail.com'];
+                const isOwner = ownerEmails.includes(supabaseUser.email?.toLowerCase());
                 const newProfile = {
                     id: supabaseUser.id,
                     username: supabaseUser.email.split('@')[0],
-                    name: supabaseUser.user_metadata?.full_name || 'New User',
-                    role: 'cashier',
+                    name: isOwner ? 'เจ้าของร้าน' : (supabaseUser.user_metadata?.full_name || 'New User'),
+                    role: isOwner ? 'owner' : 'cashier',
                     createdAt: new Date().toISOString()
                 };
                 const { data: created } = await supabase.from('profiles').insert(newProfile).select().single();
@@ -146,7 +148,29 @@ export const AuthProvider = ({ children }) => {
 
     return (
         <AuthContext.Provider value={value}>
-            {!loading && children}
+            {loading ? (
+                <div style={{
+                    height: '100vh',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexDirection: 'column',
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    color: 'white',
+                    gap: '1rem'
+                }}>
+                    <div style={{
+                        width: '48px',
+                        height: '48px',
+                        border: '4px solid rgba(255,255,255,0.3)',
+                        borderTopColor: 'white',
+                        borderRadius: '50%',
+                        animation: 'spin 0.8s linear infinite'
+                    }} />
+                    <p style={{ fontSize: '1.1rem', fontWeight: 500, opacity: 0.9 }}>กำลังเชื่อมต่อระบบ...</p>
+                    <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                </div>
+            ) : children}
         </AuthContext.Provider>
     );
 };

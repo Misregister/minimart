@@ -3,28 +3,19 @@ import { X, ZoomIn } from 'lucide-react';
 
 const ImageModal = ({ isOpen, onClose, imageUrl, altText }) => {
     useEffect(() => {
+        const handleEsc = (e) => {
+            if (e.key === 'Escape') onClose();
+        };
+
         if (isOpen) {
             document.body.style.overflow = 'hidden';
+            document.addEventListener('keydown', handleEsc);
         } else {
             document.body.style.overflow = 'unset';
         }
 
         return () => {
             document.body.style.overflow = 'unset';
-            document.removeEventListener('keydown', handleEsc);
-        };
-    }, [isOpen]);
-
-    useEffect(() => {
-        const handleEsc = (e) => {
-            if (e.key === 'Escape') onClose();
-        };
-
-        if (isOpen) {
-            document.addEventListener('keydown', handleEsc);
-        }
-
-        return () => {
             document.removeEventListener('keydown', handleEsc);
         };
     }, [isOpen, onClose]);

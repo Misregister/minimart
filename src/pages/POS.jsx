@@ -54,33 +54,42 @@ const POS = () => {
         }
     }, [isReorderMode, sortedProducts]);
 
-    const handleReorderClick = React.useCallback((product) => {
-        if (!reorderSelection) {
-            setReorderSelection(product);
-        } else {
-            // Swap logic
-            setLocalOrderedProducts(prevList => {
-                const newList = [...prevList];
-                const indexA = newList.findIndex(p => p.id === reorderSelection.id);
-                const indexB = newList.findIndex(p => p.id === product.id);
+    const [draggedProduct, setDraggedProduct] = useState(null);
 
-                if (indexA !== -1 && indexB !== -1) {
-                    [newList[indexA], newList[indexB]] = [newList[indexB], newList[indexA]];
-                }
-                return newList;
-            });
-            setReorderSelection(null);
-        }
-    }, [reorderSelection]); // Depends on reorderSelection. localOrderedProducts is accessed via functional update!
+    const handleDragStart = React.useCallback((e, product) => {
+        setDraggedProduct(product);
+        e.dataTransfer.effectAllowed = 'move';
+    }, []);
+
+    const handleDragOver = React.useCallback((e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+    }, []);
+
+    const handleDrop = React.useCallback((e, targetProduct) => {
+        e.preventDefault();
+        if (!draggedProduct || draggedProduct.id === targetProduct.id) return;
+
+        setLocalOrderedProducts(prev => {
+            const newList = [...prev];
+            const fromIndex = newList.findIndex(p => p.id === draggedProduct.id);
+            const toIndex = newList.findIndex(p => p.id === targetProduct.id);
+
+            if (fromIndex !== -1 && toIndex !== -1) {
+                const [movedItem] = newList.splice(fromIndex, 1);
+                newList.splice(toIndex, 0, movedItem);
+            }
+            return newList;
+        });
+        setDraggedProduct(null);
+    }, [draggedProduct]);
 
     const handleProductClick = React.useCallback((product) => {
         playClick();
-        if (isReorderMode) {
-            handleReorderClick(product);
-        } else {
+        if (!isReorderMode) {
             addToCart(product);
         }
-    }, [isReorderMode, handleReorderClick, addToCart]);
+    }, [isReorderMode, addToCart]);
 
 
     const saveReorder = async () => {
@@ -124,41 +133,7 @@ const POS = () => {
     const [isPaymentOpen, setIsPaymentOpen] = useState(false);
     const [isParkedBillsOpen, setIsParkedBillsOpen] = useState(false);
 
-    // Quick Add State
     const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
-
-    const openCustomerDisplay = () => {
-        // ตั้งค่าตำแหน่ง: จอซ้าย (-1920)
-        const features = 'left=-1920,top=0,width=1920,height=1080,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=no';
-
-        // สั่งเปิด (ใช้ชื่อหน้าต่างเดิมเพื่อกันเปิดซ้ำเปิดหน้า relative url)
-        window.open('/customer-display', 'CustomerDisplay', features);
-    };
-
-    React.useEffect(() => {
-        // เรียกทำงานทันทีที่หน้านี้โหลดเสร็จ
-        openCustomerDisplay();
-    }, []);
-
-
-
-    // Sync with Customer Display (Local BroadcastChannel)
-    React.useEffect(() => {
-        const channel = new BroadcastChannel('pos_customer_display');
-        if (cart.length > 0) {
-            channel.postMessage({
-                type: 'cart',
-                cart,
-                total,
-                paymentMethod: isPaymentOpen ? 'cash' : null, // Helper for display
-                timestamp: Date.now()
-            });
-        } else if (!isPaymentOpen) {
-            channel.postMessage({ type: 'idle', timestamp: Date.now() });
-        }
-
-        return () => channel.close();
-    }, [cart, total, isPaymentOpen]);
 
     const [scannedBarcode, setScannedBarcode] = useState('');
     const isScanningRef = React.useRef(false);
@@ -266,13 +241,20 @@ const POS = () => {
 
     const posProducts = activeList.filter(p => p.showInPOS === true);
 
-    const filteredProducts = posProducts.filter(p => {
-        if (!p) return false;
-        const matchesCategory = activeCategory === 'All' || p.category === activeCategory;
-        const matchesSearch = (p.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (p.barcode || '').includes(searchTerm);
-        return matchesCategory && matchesSearch;
-    });
+    const [displayLimit, setDisplayLimit] = useState(120);
+
+    const filteredProducts = React.useMemo(() => {
+        const list = posProducts.filter(p => {
+            if (!p) return false;
+            const matchesCategory = activeCategory === 'All' || p.category === activeCategory;
+            const matchesSearch = (p.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (p.barcode || '').includes(searchTerm);
+            return matchesCategory && matchesSearch;
+        });
+        return list;
+    }, [posProducts, activeCategory, searchTerm]);
+
+    const displayedProducts = filteredProducts.slice(0, displayLimit);
 
     const styles = React.useMemo(() => ({
         container: {
@@ -665,18 +647,32 @@ const POS = () => {
 
 
                 <div style={styles.productGrid}>
-                    {filteredProducts.map(product => (
+                    {displayedProducts.map(product => (
                         <ProductCard
                             key={product.id}
                             product={product}
-                            isSelected={reorderSelection?.id === product.id}
+                            isSelected={reorderSelection?.id === product.id || draggedProduct?.id === product.id}
                             isReorderMode={isReorderMode}
                             onClick={handleProductClick}
                             onHide={handleHideProduct}
+                            onDragStart={handleDragStart}
+                            onDragOver={handleDragOver}
+                            onDrop={handleDrop}
                             styles={styles}
                             className={!isReorderMode ? "product-card-hover" : ""}
                         />
                     ))}
+                    {filteredProducts.length > displayedProducts.length && (
+                        <div style={{ gridColumn: '1 / -1', padding: '1rem', textAlign: 'center' }}>
+                            <Button
+                                variant="outline"
+                                onClick={() => setDisplayLimit(prev => prev + 120)}
+                                style={{ width: '200px' }}
+                            >
+                                โหลดสินค้าเพิ่ม...
+                            </Button>
+                        </div>
+                    )}
                 </div>
             </div>
 

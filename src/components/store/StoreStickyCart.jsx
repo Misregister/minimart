@@ -15,32 +15,20 @@ const StoreStickyCart = () => {
             {/* 1. Floating Button (Always Visible) */}
             <div
                 className="sticky-cart-btn"
-                onClick={() => setIsOpen(true)}
+                style={{ cursor: 'pointer' }}
+                onClick={() => {
+                    console.log("Opening cart...");
+                    setIsOpen(true);
+                }}
             >
-                <div style={{ position: 'relative' }}>
-                    <ShoppingBag size={24} />
-                    <span style={{
-                        position: 'absolute',
-                        top: '-5px',
-                        right: '-5px',
-                        background: '#ef4444',
-                        color: 'white',
-                        fontSize: '10px',
-                        width: '18px',
-                        height: '18px',
-                        borderRadius: '50%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontWeight: 'bold'
-                    }}>
-                        {totalItems}
-                    </span>
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div className="cart-count-badge">{totalItems}</div>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 600, opacity: 0.8 }}>ตะกร้าสินค้า</span>
+                        <span style={{ fontSize: '1rem', fontWeight: 800 }}>฿{Number(totalPrice).toLocaleString()}</span>
+                    </div>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', marginLeft: '4px' }}>
-                    <span style={{ fontSize: '0.8rem', fontWeight: 500 }}>ตะกร้าสินค้า</span>
-                    <span style={{ fontSize: '0.9rem', fontWeight: 800 }}>฿{Number(totalPrice).toLocaleString()}</span>
-                </div>
+                <ShoppingBag size={24} />
             </div>
 
             {/* 2. Cart Drawer (Popup) */}

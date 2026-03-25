@@ -1,9 +1,26 @@
 import React, { memo } from 'react';
 
-const ProductCard = memo(({ product, isSelected, isReorderMode, onClick, onHide, styles, className }) => {
+const ProductCard = memo(({ 
+    product, 
+    isSelected, 
+    isReorderMode, 
+    onClick, 
+    onHide, 
+    styles, 
+    className,
+    onDragStart,
+    onDragOver,
+    onDrop,
+    onDragEnd
+}) => {
     return (
         <div
             className={className}
+            draggable={isReorderMode}
+            onDragStart={(e) => onDragStart && onDragStart(e, product)}
+            onDragOver={(e) => onDragOver && onDragOver(e)}
+            onDrop={(e) => onDrop && onDrop(e, product)}
+            onDragEnd={(e) => onDragEnd && onDragEnd(e)}
             style={{
                 ...styles.productCard,
                 position: 'relative', // Ensure absolute positioning works
@@ -11,7 +28,8 @@ const ProductCard = memo(({ product, isSelected, isReorderMode, onClick, onHide,
                 transform: isSelected ? 'scale(0.95)' : 'scale(1)',
                 boxShadow: isSelected ? '0 0 0 4px rgba(59, 130, 246, 0.3)' : 'none',
                 cursor: isReorderMode ? 'move' : 'pointer',
-                opacity: (isReorderMode) ? 0.7 : 1
+                opacity: (isReorderMode) ? 0.7 : 1,
+                transition: 'transform 0.1s ease-in-out'
             }}
             onClick={() => onClick(product)}
         >
@@ -120,7 +138,9 @@ const ProductCard = memo(({ product, isSelected, isReorderMode, onClick, onHide,
         prevProps.isSelected === nextProps.isSelected &&
         prevProps.isReorderMode === nextProps.isReorderMode &&
         prevProps.styles === nextProps.styles &&
-        prevProps.className === nextProps.className
+        prevProps.className === nextProps.className &&
+        prevProps.onDragStart === nextProps.onDragStart &&
+        prevProps.onDrop === nextProps.onDrop
     );
 });
 

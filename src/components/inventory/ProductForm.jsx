@@ -192,10 +192,20 @@ const ProductForm = ({ product, initialData, onClose, isQuickAdd = false, onSucc
                 return;
             }
 
-            // Sanitize formData
-            const sanitizedData = Object.fromEntries(
-                Object.entries(formData).filter(([_, v]) => v !== undefined)
-            );
+            // Sanitize and handle numeric fields specifically
+            const numericFields = ['price', 'cost', 'fullPrice', 'stock', 'minStock', 'packSize', 'packPrice', 'caseSize', 'casePrice', 'soldToday'];
+            const sanitizedData = {};
+            
+            Object.keys(formData).forEach(key => {
+                let value = formData[key];
+                if (numericFields.includes(key)) {
+                    // Convert empty string/null to 0 for numeric fields
+                    sanitizedData[key] = (value === "" || value === null || value === undefined) ? 0 : parseFloat(value);
+                } else if (value !== undefined) {
+                    sanitizedData[key] = value;
+                }
+            });
+
             sanitizedData.barcode = trimmedBarcode;
             if (trimmedPackBarcode) sanitizedData.packBarcode = trimmedPackBarcode;
             if (trimmedCaseBarcode) sanitizedData.caseBarcode = trimmedCaseBarcode;
@@ -276,10 +286,20 @@ const ProductForm = ({ product, initialData, onClose, isQuickAdd = false, onSucc
                 return;
             }
 
-            // Sanitize formData
-            const sanitizedData = Object.fromEntries(
-                Object.entries(formData).filter(([_, v]) => v !== undefined)
-            );
+            // Sanitize and handle numeric fields specifically
+            const numericFields = ['price', 'cost', 'fullPrice', 'stock', 'minStock', 'packSize', 'packPrice', 'caseSize', 'casePrice', 'soldToday'];
+            const sanitizedData = {};
+            
+            Object.keys(formData).forEach(key => {
+                let value = formData[key];
+                if (numericFields.includes(key)) {
+                    // Convert empty string/null to 0 for numeric fields
+                    sanitizedData[key] = (value === "" || value === null || value === undefined) ? 0 : parseFloat(value);
+                } else if (value !== undefined) {
+                    sanitizedData[key] = value;
+                }
+            });
+
             sanitizedData.barcode = trimmedBarcode;
             if (trimmedPackBarcode) sanitizedData.packBarcode = trimmedPackBarcode;
             if (trimmedCaseBarcode) sanitizedData.caseBarcode = trimmedCaseBarcode;

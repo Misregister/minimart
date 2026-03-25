@@ -5,10 +5,11 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabase';
 import { Search, ShoppingBag, Plus, Clock, HelpCircle } from 'lucide-react';
 import { useDebounce } from '../hooks/useDebounce';
+import { useProduct } from '../contexts/ProductContext';
 import './Storefront.css';
 
 const CATEGORY_LIST = [
-    { id: 'แอลกอฮอร์และบุหรี่', label: 'แอลกอฮอร์และบุหรี่', icon: '🍺' },
+    { id: 'แอลกอฮอร์และบุหรี่', label: 'แอลกอฮอล์และบุหรี่', icon: '🍺' },
     { id: 'ขนมและลูกอม', label: 'ขนมและลูกอม', icon: '🍬' },
     { id: 'เครื่องดื่ม', label: 'เครื่องดื่ม', icon: '🥤' },
     { id: 'นมและโยเกิร์ต', label: 'นมและโยเกิร์ต', icon: '🥛' },
@@ -28,11 +29,9 @@ const PAGE_SIZE = 24;
 const Storefront = () => {
     const navigate = useNavigate();
     const { addToCart, cart } = useStoreCart();
+    const { products: allProducts, loading: ctxLoading } = useProduct();
 
-    const [storeProducts, setStoreProducts] = useState([]);
-    const [page, setPage] = useState(0);
-    const [hasMore, setHasMore] = useState(true);
-    const [isFetchingMore, setIsFetchingMore] = useState(false);
+    const [page, setPage] = useState(1);
     const [searchTerm, setSearchTerm] = useState('');
     const debouncedSearchTerm = useDebounce(searchTerm, 300);
     const [selectedCategory, setSelectedCategory] = useState('Recommended');
@@ -40,45 +39,32 @@ const Storefront = () => {
     const [latestStatus, setLatestStatus] = useState(null);
     const [showToast, setShowToast] = useState(false);
 
-    const fetchProducts = async (isNewSearch = false) => {
-        setIsFetchingMore(true);
-        const currentPage = isNewSearch ? 0 : page;
+    // INSTANT FILTERING FROM CONTEXT (PRE-LOADED DATA)
+    const filteredProducts = useMemo(() => {
+        let result = (allProducts || []).filter(p => p.showInStore);
         
-        let query = supabase
-            .from('products')
-            .select('*')
-            .eq('showInStore', true);
-
         if (selectedCategory === 'Recommended' && !debouncedSearchTerm) {
-            query = query.eq('isRecommended', true);
+            result = result.filter(p => p.isRecommended);
         } else if (selectedCategory !== 'Recommended' && !debouncedSearchTerm) {
-            query = query.eq('category', selectedCategory);
+            result = result.filter(p => p.category === selectedCategory);
         }
 
         if (debouncedSearchTerm) {
-            query = query.ilike('name', `%${debouncedSearchTerm}%`);
+            const term = debouncedSearchTerm.toLowerCase();
+            result = result.filter(p => p.name.toLowerCase().includes(term));
         }
 
-        query = query
-            .order('posIndex', { ascending: true })
-            .range(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE - 1);
+        return result.sort((a, b) => (Number(a.posIndex) || 0) - (Number(b.posIndex) || 0));
+    }, [allProducts, selectedCategory, debouncedSearchTerm]);
 
-        const { data, error } = await query;
+    const storeProducts = useMemo(() => {
+        return filteredProducts.slice(0, page * PAGE_SIZE);
+    }, [filteredProducts, page]);
 
-        if (error) {
-            console.error("Supabase error:", error);
-        } else {
-            if (data.length < PAGE_SIZE) setHasMore(false);
-            else setHasMore(true);
-            
-            setStoreProducts(prev => isNewSearch ? data : [...prev, ...data]);
-            setPage(currentPage + 1);
-        }
-        setIsFetchingMore(false);
-    };
+    const hasMore = storeProducts.length < filteredProducts.length;
 
     useEffect(() => {
-        fetchProducts(true);
+        setPage(1); // Reset page on filter change
     }, [selectedCategory, debouncedSearchTerm]);
 
     useEffect(() => {
@@ -99,6 +85,19 @@ const Storefront = () => {
             return () => supabase.removeChannel(channel);
         }
     }, []);
+
+    // Infinite Scroll Observer
+    const observer = React.useRef();
+    const lastProductRef = useCallback(node => {
+        if (ctxLoading) return;
+        if (observer.current) observer.current.disconnect();
+        observer.current = new IntersectionObserver(entries => {
+            if (entries[0].isIntersecting && hasMore) {
+                setPage(p => p + 1);
+            }
+        });
+        if (node) observer.current.observe(node);
+    }, [ctxLoading, hasMore]);
 
     const handleAddToCart = useCallback((product) => {
         addToCart(product, 1);
@@ -131,36 +130,43 @@ const Storefront = () => {
             )}
 
             <header className="store-header">
-                <div className="store-hero">
-                    <div className="hero-top">
-                        <h1 className="store-title">Minimart <span>Delivery</span></h1>
-                        <button className="help-trigger" onClick={() => setShowHelpModal(true)}>
-                            <HelpCircle size={18} /> วิธีสั่งซื้อ
-                        </button>
-                    </div>
-                    <div className="store-search-wrapper">
-                        <Search size={20} />
-                        <input 
-                            type="text" 
-                            placeholder="ค้นหาสินค้า..." 
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                    </div>
-                </div>
-
-                <div className="promo-section">
-                    <div className="promo-card">
-                        <img src="/promo_delivery_200.png" alt="Delivery 200 Min" />
-                    </div>
+                <h1 className="store-title">Minimart Delivery</h1>
+                
+                <div className="store-search-wrapper">
+                    <Search className="store-search-icon" size={18} />
+                    <input 
+                        type="text" 
+                        className="store-search-input"
+                        placeholder="วันนี้อยากทานอะไรดีครับ..." 
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
                 </div>
 
                 {latestStatus && (
-                    <div className="order-status-banner" onClick={() => navigate('/track')}>
+                    <div className="active-order-banner" onClick={() => navigate(`/store/tracking/${JSON.parse(localStorage.getItem('store_order_history') || '[]').slice(-1)}`)}>
                         <Clock size={16} />
-                        <span>สถานะออเดอร์ล่าสุด: <strong>{latestStatus}</strong></span>
+                        <div className="banner-content">
+                            <span>สถานะออเดอร์ล่าสุด: <strong>{latestStatus}</strong></span>
+                        </div>
                     </div>
                 )}
+
+                {/* Announcement Notice */}
+                <div className="store-notice-card">
+                    <div className="notice-image">
+                        <img src="/media__1774473586344.png" alt="Oil Price Update" />
+                    </div>
+                    <div className="notice-content">
+                        <h3>⚠️ แจ้งเปลี่ยนแปลงการจัดส่งน้ำดื่ม ⚠️</h3>
+                        <p>เนื่องจากสถานการณ์ราคาน้ำมันไม่ปกติ ทางร้านขอปรับเงื่อนไขชั่วคราว:</p>
+                        <div className="notice-badges">
+                            <span className="notice-badge">✅ สั่งขั้นต่ำ 200.- ขึ้นไป</span>
+                            <span className="notice-badge">✅ ปรับราคาตามต้นทุน</span>
+                        </div>
+                        <p className="notice-footer">ขอขอบพระคุณลูกค้าทุกท่านที่เข้าใจครับ/ค่ะ</p>
+                    </div>
+                </div>
 
                 <div className="category-scroll-container">
                     <div className="category-scroll">
@@ -184,20 +190,31 @@ const Storefront = () => {
             </header>
 
             <div className="product-grid">
-                {storeProducts.map(product => (
-                    <StoreProductCard 
-                        key={product.id} 
-                        product={product} 
-                        onAdd={() => handleAddToCart(product)}
-                        currentQty={cart.find(item => item.id === product.id)?.quantity || 0}
-                    />
-                ))}
+                {storeProducts.map((product, index) => {
+                    const isLast = storeProducts.length === index + 1;
+                    return (
+                        <div key={product.id} ref={isLast ? lastProductRef : null}>
+                            <StoreProductCard 
+                                product={product} 
+                                onAdd={() => handleAddToCart(product)}
+                                currentQty={cart.find(item => item.id === product.id)?.quantity || 0}
+                            />
+                        </div>
+                    );
+                })}
+                
+                {ctxLoading && storeProducts.length === 0 && (
+                    <>
+                        <ProductSkeleton />
+                        <ProductSkeleton />
+                        <ProductSkeleton />
+                        <ProductSkeleton />
+                    </>
+                )}
             </div>
 
-            {hasMore && (
-                <button className="load-more" onClick={() => fetchProducts()} disabled={isFetchingMore}>
-                    {isFetchingMore ? 'กำลังโหลด...' : 'แสดงเพิ่มเติม'}
-                </button>
+            {!hasMore && storeProducts.length > 0 && (
+                <div className="end-of-list">✨ สิ้นสุดรายการสินค้าแล้วครับ ✨</div>
             )}
 
             <StoreStickyCart />
@@ -211,18 +228,20 @@ const StoreProductCard = React.memo(({ product, onAdd, currentQty }) => {
         <div className="product-card">
             <div className="product-image-frame">
                 {product.image ? (
-                    <img src={product.image} alt={product.name} loading="lazy" />
+                    <img src={product.image} alt={product.name} className="product-image" loading="lazy" />
                 ) : (
                     <div className="no-image"><ShoppingBag size={40} /></div>
                 )}
                 {isOutOfStock && <div className="badge-out">หมด</div>}
+                {product.isRecommended && <div className="product-badge badge-bestseller">ขายดี</div>}
             </div>
             <div className="product-info">
-                <h3>{product.name}</h3>
+                <div className="product-name">{product.name}</div>
+                <div className="product-unit">{product.unit || 'ชิ้น'}</div>
                 <div className="product-footer">
-                    <span className="price">฿{product.price}</span>
+                    <span className="product-price">฿{product.price}</span>
                     <button 
-                        className="add-btn" 
+                        className={`add-btn ${isOutOfStock ? 'disabled' : ''}`}
                         onClick={onAdd}
                         disabled={isOutOfStock || currentQty >= 50}
                     >
@@ -233,5 +252,19 @@ const StoreProductCard = React.memo(({ product, onAdd, currentQty }) => {
         </div>
     );
 });
+
+const ProductSkeleton = () => (
+    <div className="product-card skeleton">
+        <div className="product-image-frame skeleton-pulse"></div>
+        <div className="product-info">
+            <div className="skeleton-line skeleton-pulse" style={{ width: '80%', height: '1.2rem' }}></div>
+            <div className="skeleton-line skeleton-pulse" style={{ width: '40%', height: '0.8rem', marginTop: '0.5rem' }}></div>
+            <div className="product-footer" style={{ marginTop: 'auto' }}>
+                <div className="skeleton-line skeleton-pulse" style={{ width: '50%', height: '1.5rem' }}></div>
+                <div className="add-btn skeleton-pulse" style={{ background: '#f1f5f9' }}></div>
+            </div>
+        </div>
+    </div>
+);
 
 export default Storefront;

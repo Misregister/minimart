@@ -10,7 +10,7 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          vendor: ['react', 'react-dom', 'react-router-dom', 'firebase/app', 'firebase/firestore', 'firebase/auth'],
+          vendor: ['react', 'react-dom', 'react-router-dom'],
           ui: ['lucide-react', 'qrcode.react']
         }
       }

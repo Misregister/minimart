@@ -103,8 +103,39 @@ const CustomerDisplayContent = () => {
         return () => clearTimeout(timer);
     }, [activeSlide]);
 
-    // Listen for POS updates (Local BroadcastChannel)
+    // Listen for POS updates (Local BroadcastChannel + Storage backup)
     useEffect(() => {
+        // Initial load from storage OR channel
+        const loadInitial = () => {
+            const storedCart = localStorage.getItem('pos_current_cart');
+            const storedTotal = localStorage.getItem('pos_current_total') || 0;
+            const storedLastPayment = localStorage.getItem('pos_last_payment');
+
+            if (storedLastPayment) {
+                const lp = JSON.parse(storedLastPayment);
+                setState(prev => ({ 
+                    ...prev, 
+                    type: 'success', 
+                    total: lp.total || 0,
+                    change: lp.change || 0,
+                    received: lp.received || 0,
+                    cart: []
+                }));
+            } else if (storedCart) {
+                const cart = JSON.parse(storedCart);
+                if (Array.isArray(cart) && cart.length > 0) {
+                    setState(prev => ({ 
+                        ...prev, 
+                        type: 'cart', 
+                        cart, 
+                        total: Number(storedTotal) || 0 
+                    }));
+                }
+            }
+        };
+
+        loadInitial();
+
         // 1. BroadcastChannel (Local)
         const channel = new BroadcastChannel('pos_customer_display');
         channel.onmessage = (event) => {
@@ -114,8 +145,17 @@ const CustomerDisplayContent = () => {
             }
         };
 
+        // 2. Storage Event (Cross-tab fallback)
+        const handleStorage = (e) => {
+            if (e.key === 'pos_current_cart' || e.key === 'pos_last_payment') {
+                loadInitial();
+            }
+        };
+        window.addEventListener('storage', handleStorage);
+
         return () => {
             channel.close();
+            window.removeEventListener('storage', handleStorage);
         };
     }, []);
 

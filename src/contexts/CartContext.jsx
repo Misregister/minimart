@@ -47,7 +47,8 @@ export const CartProvider = ({ children }) => {
     // Save to localStorage
     useEffect(() => {
         localStorage.setItem('pos_current_cart', JSON.stringify(cart));
-    }, [cart]);
+        localStorage.setItem('pos_current_total', total.toString());
+    }, [cart, total]);
 
     useEffect(() => {
         localStorage.setItem('pos_parked_carts', JSON.stringify(parkedCarts));
@@ -60,6 +61,24 @@ export const CartProvider = ({ children }) => {
             localStorage.removeItem('pos_last_payment');
         }
     }, [lastPayment]);
+
+    // 📡 Synchronize with Customer Display (Local)
+    useEffect(() => {
+        const channel = new BroadcastChannel('pos_customer_display');
+        
+        // Don't send if we are in a payment success state (handled by PaymentModal for higher precision)
+        // But for normal cart updates, we send type: 'cart'
+        if (!lastPayment) {
+            channel.postMessage({
+                type: cart.length > 0 ? 'cart' : 'idle',
+                cart: cart,
+                total: total,
+                timestamp: Date.now()
+            });
+        }
+        
+        return () => channel.close();
+    }, [cart, total, lastPayment]);
 
     // Calculate totals
     const subtotal = cart.reduce((total, item) => total + (item.price * item.quantity), 0);

@@ -119,8 +119,8 @@ const fetchWithRetry = async (fetchFn, maxRetries = 3) => {
     return { data: null, error: { message: 'Max retries exceeded' } };
 };
 
-// Only essential columns — no image
-const MAIN_COLUMNS = "id, name, barcode, price, cost, stock, category, unit, packSize, packPrice, minStock, zone, showInPOS, posIndex, packBarcode, caseBarcode, caseSize, casePrice, showInStore, isRecommended, isHero, updatedAt, createdAt, soldToday";
+// Core columns for POS/Store - image included for instant visuals
+const MAIN_COLUMNS = "id, name, barcode, price, cost, stock, category, unit, image, packSize, packPrice, minStock, zone, showInPOS, posIndex, packBarcode, caseBarcode, caseSize, casePrice, showInStore, isRecommended, isHero, updatedAt, createdAt, soldToday";
 
 export const useProduct = () => {
     const context = useContext(ProductContext);
@@ -362,45 +362,6 @@ export const ProductProvider = ({ children }) => {
                 setConnectionStatus('error');
             } finally {
                 if (!cancelled) setLoading(false);
-            }
-
-            // Fetch images
-            await fetchImages();
-        };
-
-        const fetchImages = async () => {
-            if (cancelled) return;
-            
-            // Re-fetch current products locally
-            let currentProducts = [];
-            setProducts(p => { currentProducts = p; return p; });
-
-            const mediaIds = currentProducts
-                .filter(p => !p.image && (p.showInPOS || p.showInStore))
-                .map(p => p.id);
-            
-            if (mediaIds.length === 0) return;
-
-            const CHUNK = 50;
-            console.log(`[Turbo] 🖼️ Fetching images for ${mediaIds.length} products...`);
-            
-            for (let i = 0; i < mediaIds.length; i += CHUNK) {
-                if (cancelled) break;
-                
-                const chunkIds = mediaIds.slice(i, i + CHUNK);
-                const { data: images, error } = await supabase
-                    .from('products')
-                    .select('id, image')
-                    .in('id', chunkIds)
-                    .not('image', 'is', null);
-
-                if (images && images.length > 0) {
-                    const imageMap = Object.fromEntries(images.map(img => [img.id, img.image]));
-                    setProducts(prev => prev.map(p => imageMap[p.id] ? { ...p, image: imageMap[p.id] } : p));
-                }
-                
-                // Small delay to keep UI smooth
-                await new Promise(r => setTimeout(r, 100));
             }
         };
 

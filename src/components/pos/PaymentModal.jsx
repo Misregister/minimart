@@ -15,7 +15,7 @@ const STATIC_QR = "00020101021130650016A0000006770101120115010753600010286021501
 
 const PaymentModal = ({ isOpen, onClose }) => {
     const { cart, total, clearCart } = useCart();
-    const { deductStock } = useProduct();
+    const { deductStock, bulkDeductStock } = useProduct();
     const { recordTransaction } = useShift();
     const { customers, addDebt } = useCustomer();
     const { shopSettings } = useSettings();
@@ -113,13 +113,13 @@ const PaymentModal = ({ isOpen, onClose }) => {
 
         setIsProcessing(true);
         try {
-            for (const item of cart) {
+            // STEP 1: Pre-calculate everything (Zero network latency)
+            const deductions = cart.map(item => {
                 let deductAmount = item.quantity;
                 if (item.isPack) deductAmount = item.quantity * (item.packSize || 1);
                 if (item.isCase) deductAmount = item.quantity * (item.caseSize || 1);
-
-                await deductStock(item.originalId || item.id, deductAmount);
-            }
+                return { productId: item.originalId || item.id, amount: deductAmount };
+            });
 
             let changeAmount = 0;
             let cashIn = total;
@@ -134,7 +134,7 @@ const PaymentModal = ({ isOpen, onClose }) => {
                 paymentMethodRecord = `split:cash=${splitCashAmount},transfer=${splitTransferAmount}`;
             }
 
-            await recordTransaction({
+            const txParams = {
                 items: cart,
                 total: total,
                 paymentMethod: paymentMethodRecord,
@@ -145,16 +145,23 @@ const PaymentModal = ({ isOpen, onClose }) => {
                 customerName: method === 'credit' ? selectedCustomer?.name : null,
                 note: method === 'credit' ? creditNote : null,
                 timestamp: new Date()
-            });
+            };
+
+            // STEP 2: Fire ALL database operations in PARALLEL! 🚀
+            console.log(`[Turbo] ⚡ Processing payment parallel...`);
+            const parallelOps = [
+                bulkDeductStock(deductions),
+                recordTransaction(txParams)
+            ];
 
             if (method === 'credit' && selectedCustomer) {
-                // Generate a temporary REF ID based on timestamp or transaction ID if available
-                // For now use a timestamp string
-                addDebt(selectedCustomer.id, total, `POS-${Date.now()}`);
+                parallelOps.push(addDebt(selectedCustomer.id, total, `POS-${Date.now()}`));
             }
 
-            clearCart();
+            await Promise.all(parallelOps);
 
+            // STEP 3: Instant UI transition
+            clearCart();
             setFinalChange(changeAmount);
             setIsSuccess(true);
 

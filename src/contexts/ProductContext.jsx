@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '../services/supabase';
 import { useAuth } from './AuthContext';
 
@@ -137,14 +137,29 @@ export const ProductProvider = ({ children }) => {
     const { user } = useAuth();
     const fetchedRef = useRef(false);
 
-    useEffect(() => {
-        if (!user) {
-            setProducts([]);
-            setLoading(false);
-            setConnectionStatus('disconnected');
-            return;
-        }
+    // ============================================
+    // ⚡ SUPER FAST O(1) LOOKUP MAPS
+    // ============================================
+    const productMap = useMemo(() => {
+        const map = new Map();
+        products.forEach(p => map.set(p.id, p));
+        return map;
+    }, [products]);
 
+    const barcodeMap = useMemo(() => {
+        const map = new Map();
+        products.forEach(p => {
+            if (p.barcode) map.set(String(p.barcode).trim().toLowerCase(), { product: p, type: 'unit' });
+            if (p.packBarcode) map.set(String(p.packBarcode).trim().toLowerCase(), { product: p, type: 'pack' });
+            if (p.caseBarcode) map.set(String(p.caseBarcode).trim().toLowerCase(), { product: p, type: 'case' });
+        });
+        return map;
+    }, [products]);
+
+    useEffect(() => {
+        // We now allow loading even if !user for the Storefront (Guest access)
+        // Sensitive operations like addProduct/updateProduct should still check for auth or RLS
+        
         if (fetchedRef.current) return;
         fetchedRef.current = true;
 
@@ -211,13 +226,14 @@ export const ProductProvider = ({ children }) => {
                             .from('products')
                             .select('*', { count: 'exact', head: true });
                         
-                        if (count !== null && count !== cachedData.length + (changed?.filter(p => !new Set(cachedData.map(x => x.id)).has(p.id)).length || 0)) {
-                            console.log(`[Turbo] ⚠️ Count mismatch (server: ${count}, local: ${cachedData.length}), doing full refresh...`);
-                            await fullParallelFetch(cancelled);
+                        if (count !== null && count !== products.length) {
+                             // Just log mismatch, full parallel fetch handles deletes or missing items
+                             console.log(`[Turbo] ⚠️ Count mismatch (server: ${count}, local: ${products.length}), doing full refresh...`);
+                             await fullParallelFetch(cancelled);
+                        } else {
+                            // Fetch images in background
+                            await fetchImages();
                         }
-                        
-                        // Fetch images in background
-                        await fetchImages(products);
                         return;
                     }
                 } catch (err) {
@@ -233,7 +249,6 @@ export const ProductProvider = ({ children }) => {
 
         const fullParallelFetch = async (cancelled) => {
             const startTime = performance.now();
-            if (products.length === 0) setLoading(true);
             setConnectionStatus('connecting');
 
             try {
@@ -246,15 +261,16 @@ export const ProductProvider = ({ children }) => {
 
                 if (cancelled) return;
                 
-                if (countError || count === null || count === 0) {
-                    if (count === 0) {
-                        setProducts([]);
-                        setConnectionStatus('connected');
-                        setLoading(false);
-                        return;
-                    }
+                if (countError || count === null) {
                     console.error('[Turbo] ❌ Count query failed:', countError?.message);
                     setConnectionStatus('error');
+                    setLoading(false);
+                    return;
+                }
+
+                if (count === 0) {
+                    setProducts([]);
+                    setConnectionStatus('connected');
                     setLoading(false);
                     return;
                 }
@@ -263,45 +279,78 @@ export const ProductProvider = ({ children }) => {
                 setConnectionStatus('syncing');
 
                 // Step 2: Fire ALL batch requests in parallel! 🚀
+                // PRIORITY 1: Fetch all "Storefront" products first (usually smaller set)
+                console.log(`[Turbo] 🎯 Fetching Storefront products first...`);
+                const { data: storeProducts, error: storeError } = await fetchWithRetry(() =>
+                    supabase
+                        .from('products')
+                        .select(MAIN_COLUMNS)
+                        .eq('showInStore', true)
+                        .order('name')
+                );
+
+                if (!storeError && storeProducts && !cancelled) {
+                    setProducts(storeProducts);
+                    setLoading(false); // Stop full-page loader once storefront is ready
+                    setConnectionStatus('syncing');
+                    console.log(`[Turbo] ✅ Storefront ready: ${storeProducts.length} items`);
+                }
+
+                // PRIORITY 2: Fetch the rest in parallel batches
                 const BATCH = 500;
                 const batchPromises = [];
                 for (let from = 0; from < count; from += BATCH) {
                     const batchFrom = from;
-                    batchPromises.push(
-                        fetchWithRetry(() =>
-                            supabase
-                                .from('products')
-                                .select(MAIN_COLUMNS)
-                                .order('name')
-                                .range(batchFrom, batchFrom + BATCH - 1)
-                        , 2)
-                    );
+                    const promise = fetchWithRetry(() =>
+                        supabase
+                            .from('products')
+                            .select(MAIN_COLUMNS)
+                            .order('name')
+                            .range(batchFrom, batchFrom + BATCH - 1)
+                    , 2).then(res => {
+                        if (res.data && !cancelled) {
+                            // PROGRESSIVE LOAD: Update UI immediately as each batch arrives
+                            setProducts(prev => {
+                                // Smart merge: keep newest data, prevent dupes
+                                const next = [...prev];
+                                const existingIds = new Set(prev.map(p => p.id));
+                                res.data.forEach(p => {
+                                    if (!existingIds.has(p.id)) {
+                                        next.push(p);
+                                        existingIds.add(p.id);
+                                    }
+                                });
+                                return next;
+                            });
+                            setConnectionStatus('syncing');
+                        }
+                        return res;
+                    });
+                    batchPromises.push(promise);
                 }
 
                 const results = await Promise.allSettled(batchPromises);
                 if (cancelled) return;
 
-                // Merge all results
-                let allProducts = [];
+                // Final Merge - consolidate all data for IndexedDB and ensure state is complete
+                let allProductsFetched = [];
                 let anyFailed = false;
-                results.forEach((result, i) => {
+                results.forEach((result) => {
                     if (result.status === 'fulfilled' && result.value.data) {
-                        allProducts = [...allProducts, ...result.value.data];
-                    } else {
+                        allProductsFetched = [...allProductsFetched, ...result.value.data];
+                    } else if (result.status === 'rejected' || (result.value && result.value.error)) {
                         anyFailed = true;
-                        console.error(`[Turbo] ❌ Batch ${i} failed`);
                     }
                 });
 
                 const elapsed = (performance.now() - startTime).toFixed(0);
 
-                if (allProducts.length > 0) {
-                    setProducts(allProducts);
+                if (allProductsFetched.length > 0) {
                     setConnectionStatus(anyFailed ? 'cached' : 'connected');
-                    console.log(`[Turbo] 🚀 Loaded ${allProducts.length} products in ${elapsed}ms (${batchPromises.length} parallel batches)`);
+                    console.log(`[Turbo] 🚀 Loaded ${allProductsFetched.length} products total in ${elapsed}ms (${batchPromises.length} parallel batches)`);
 
                     // Save to IndexedDB in background
-                    idbPutAll(allProducts).then(() => {
+                    idbPutAll(allProductsFetched).then(() => {
                         idbSetMeta('lastSyncTime', new Date().toISOString());
                         console.log('[Turbo] 💾 Saved to IndexedDB');
                     });
@@ -322,62 +371,92 @@ export const ProductProvider = ({ children }) => {
         const fetchImages = async () => {
             if (cancelled) return;
             
-            // Get current products from state
-            const currentProducts = await new Promise(resolve => {
-                setProducts(prev => {
-                    resolve(prev);
-                    return prev;
-                });
-            });
+            // Re-fetch current products locally
+            let currentProducts = [];
+            setProducts(p => { currentProducts = p; return p; });
 
-            const mediaIds = currentProducts.filter(p => p.showInPOS || p.showInStore).map(p => p.id);
+            const mediaIds = currentProducts
+                .filter(p => !p.image && (p.showInPOS || p.showInStore))
+                .map(p => p.id);
+            
             if (mediaIds.length === 0) return;
 
             const CHUNK = 50;
-            const promises = [];
+            console.log(`[Turbo] 🖼️ Fetching images for ${mediaIds.length} products...`);
+            
             for (let i = 0; i < mediaIds.length; i += CHUNK) {
-                promises.push(
-                    fetchWithRetry(() =>
-                        supabase
-                            .from('products')
-                            .select('id, image')
-                            .in('id', mediaIds.slice(i, i + CHUNK))
-                            .not('image', 'is', null)
-                    , 1)
-                );
-            }
+                if (cancelled) break;
+                
+                const chunkIds = mediaIds.slice(i, i + CHUNK);
+                const { data: images, error } = await supabase
+                    .from('products')
+                    .select('id, image')
+                    .in('id', chunkIds)
+                    .not('image', 'is', null);
 
-            try {
-                const results = await Promise.allSettled(promises);
-                if (cancelled) return;
-                const allImages = {};
-                results.forEach(r => {
-                    if (r.status === 'fulfilled' && r.value.data) {
-                        r.value.data.forEach(img => { allImages[img.id] = img.image; });
-                    }
-                });
-                if (Object.keys(allImages).length > 0) {
-                    setProducts(prev => prev.map(p => allImages[p.id] ? { ...p, image: allImages[p.id] } : p));
-                    console.log(`[Turbo] 🖼️ ${Object.keys(allImages).length} images loaded`);
+                if (images && images.length > 0) {
+                    const imageMap = Object.fromEntries(images.map(img => [img.id, img.image]));
+                    setProducts(prev => prev.map(p => imageMap[p.id] ? { ...p, image: imageMap[p.id] } : p));
                 }
-            } catch { /* ignore */ }
+                
+                // Small delay to keep UI smooth
+                await new Promise(r => setTimeout(r, 100));
+            }
         };
 
         turboLoad();
 
-        // Real-time updates (also update IndexedDB)
+        // ============================================
+        // 📡 BATCHED REAL-TIME SUBSCRIPTION
+        // (Prevents UI lag if 1,000 items update at once)
+        // ============================================
+        let updateQueue = [];
+        let updateTimer = null;
+
+        const processQueue = () => {
+            if (updateQueue.length === 0) return;
+            const currentBatch = [...updateQueue];
+            updateQueue = [];
+
+            setProducts(prev => {
+                let next = [...prev];
+                const puts = [];
+                const deletes = [];
+
+                currentBatch.forEach(payload => {
+                    if (payload.eventType === 'INSERT') {
+                        next.push(payload.new);
+                        puts.push(payload.new);
+                    } else if (payload.eventType === 'UPDATE') {
+                        const idx = next.findIndex(p => p.id === payload.new.id);
+                        if (idx !== -1) {
+                             next[idx] = { ...next[idx], ...payload.new };
+                        } else {
+                             next.push(payload.new);
+                        }
+                        puts.push(payload.new);
+                    } else if (payload.eventType === 'DELETE') {
+                        next = next.filter(p => p.id !== payload.old.id);
+                        deletes.push(payload.old.id);
+                    }
+                });
+
+                if (puts.length > 0) idbPutAll(puts);
+                if (deletes.length > 0) idbDeleteIds(deletes);
+
+                return next;
+            });
+        };
+
         const channel = supabase
             .channel('products_changes')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, (payload) => {
-                if (payload.eventType === 'INSERT') {
-                    setProducts(prev => [...prev, payload.new]);
-                    idbPutAll([payload.new]);
-                } else if (payload.eventType === 'UPDATE') {
-                    setProducts(prev => prev.map(p => p.id === payload.new.id ? { ...p, ...payload.new } : p));
-                    idbPutAll([payload.new]);
-                } else if (payload.eventType === 'DELETE') {
-                    setProducts(prev => prev.filter(p => p.id !== payload.old.id));
-                    idbDeleteIds([payload.old.id]);
+                updateQueue.push(payload);
+                if (!updateTimer) {
+                    updateTimer = setTimeout(() => {
+                        processQueue();
+                        updateTimer = null;
+                    }, 300); // 300ms buffer window
                 }
             })
             .subscribe();
@@ -385,6 +464,7 @@ export const ProductProvider = ({ children }) => {
         return () => {
             cancelled = true;
             fetchedRef.current = false;
+            if (updateTimer) clearTimeout(updateTimer);
             supabase.removeChannel(channel);
         };
     }, [user]);
@@ -395,7 +475,7 @@ export const ProductProvider = ({ children }) => {
 
         let existingId = id;
         if (!existingId && trimmedBarcode) {
-            const existing = products.find(p => String(p.barcode).trim() === trimmedBarcode);
+            const existing = barcodeMap.get(trimmedBarcode.toLowerCase())?.product;
             if (existing) existingId = existing.id;
         }
 
@@ -425,11 +505,11 @@ export const ProductProvider = ({ children }) => {
             if (error) throw error;
             return created;
         }
-    }, [products]);
+    }, [barcodeMap]);
 
     const updateProduct = React.useCallback(async (id, updatedData) => {
         if (updatedData.price !== undefined) {
-             const oldProduct = products.find(p => p.id === id);
+             const oldProduct = productMap.get(id);
              if (oldProduct && Number(oldProduct.price) !== Number(updatedData.price)) {
                   supabase.from('price_history').insert({
                       productId: id,
@@ -445,7 +525,7 @@ export const ProductProvider = ({ children }) => {
             .update(updatedData)
             .eq('id', id);
         if (error) throw error;
-    }, [products]);
+    }, [productMap]);
 
     const deleteProduct = React.useCallback(async (id) => {
         const { error } = await supabase
@@ -456,7 +536,7 @@ export const ProductProvider = ({ children }) => {
     }, []);
 
     const addStock = React.useCallback(async (productId, amount, unitType = 'unit', newCostPrice = null) => {
-        const product = products.find(p => p.id === productId);
+        const product = productMap.get(productId);
         if (!product) return;
 
         let multiplier = 1;
@@ -472,10 +552,48 @@ export const ProductProvider = ({ children }) => {
         }
 
         await updateProduct(productId, updateData);
-    }, [products, updateProduct]);
+    }, [productMap, updateProduct]);
+
+    const bulkDeductStock = React.useCallback(async (deductions) => {
+        if (!deductions || deductions.length === 0) return;
+
+        const updates = deductions.map(({ productId, amount }) => {
+            const product = productMap.get(productId);
+            if (!product) return null;
+
+            const deductAmount = parseFloat(amount || 0);
+            const newStock = (parseFloat(product.stock) || 0) - deductAmount;
+            const newSold = (parseFloat(product.soldToday) || 0) + deductAmount;
+
+            // Important: only include necessary fields for upsert to reduce payload
+            return {
+                id: productId,
+                name: product.name, // Usually required NOT NULL in DB
+                stock: newStock,
+                soldToday: newSold,
+                lastSoldAt: new Date().toISOString()
+            };
+        }).filter(Boolean);
+
+        if (updates.length > 0) {
+            const { error } = await supabase.from('products').upsert(updates);
+            if (error) throw error;
+            
+             setProducts(prev => {
+                const refreshed = [...prev];
+                updates.forEach(u => {
+                    const i = refreshed.findIndex(p => p.id === u.id);
+                    if (i !== -1) {
+                         refreshed[i] = { ...refreshed[i], ...u };
+                    }
+                });
+                return refreshed;
+            });
+        }
+    }, [productMap]);
 
     const deductStock = React.useCallback(async (productId, amount) => {
-        const product = products.find(p => p.id === productId);
+        const product = productMap.get(productId);
         if (!product) return;
 
         const deductAmount = parseFloat(amount || 0);
@@ -487,13 +605,13 @@ export const ProductProvider = ({ children }) => {
             soldToday: newSold,
             lastSoldAt: new Date().toISOString()
         });
-    }, [products, updateProduct]);
+    }, [productMap, updateProduct]);
 
     const withdrawStock = React.useCallback(async (productId, amount) => {
-        const product = products.find(p => p.id === productId);
+        const product = productMap.get(productId);
         if (!product) return;
         await updateProduct(productId, { stock: (parseFloat(product.stock) || 0) - amount });
-    }, [products, updateProduct]);
+    }, [productMap, updateProduct]);
 
     const resetProductSales = React.useCallback(async (productId) => {
         await updateProduct(productId, { soldToday: 0 });
@@ -559,45 +677,55 @@ export const ProductProvider = ({ children }) => {
             { cat: 'ยาสามัญประจำบ้าน', keys: ['ยา', 'พารา', 'ยาหม่อง', 'พลาสเตอร์', 'ยาธาตุ', 'วิคส์'] }
         ];
 
-        let updateCount = 0;
+        const updates = [];
         for (const p of products) {
             const name = p.name.toLowerCase();
             for (const rule of rules) {
                 if (rule.keys.some(k => name.includes(k.toLowerCase()))) {
                     if (p.category !== rule.cat) {
-                        await updateProduct(p.id, { category: rule.cat });
-                        updateCount++;
+                        updates.push({ id: p.id, category: rule.cat, name: p.name }); // Include name for NOT NULL constraints if needed
                     }
                     break;
                 }
             }
         }
-        return updateCount;
-    }, [products, updateProduct]);
+
+        if (updates.length > 0) {
+            console.log(`[Turbo] 📂 Bulk categorizing ${updates.length} products...`);
+            const chunk = 100;
+            for (let i = 0; i < updates.length; i += chunk) {
+                const batch = updates.slice(i, i + chunk);
+                const { error } = await supabase.from('products').upsert(batch);
+                if (error) console.error("Bulk category error:", error);
+            }
+        }
+        return updates.length;
+    }, [products]);
 
     const getProductByBarcode = React.useCallback((barcode) => {
-        if (!products || !Array.isArray(products)) return undefined;
+        if (!barcode) return undefined;
         const cleanCode = String(barcode).trim().toLowerCase();
-        const isMatch = (dbCode) => {
-            if (!dbCode) return false;
-            const cleanDb = String(dbCode).trim().toLowerCase();
-            return cleanDb === cleanCode || cleanDb === `0${cleanCode}` || `0${cleanDb}` === cleanCode;
-        };
+        
+        // Exact O(1) match
+        let result = barcodeMap.get(cleanCode);
+        if (result) return result;
 
-        const unitMatch = products.find(p => p && isMatch(p.barcode));
-        if (unitMatch) return { product: unitMatch, type: 'unit' };
+        // Try with leading zero
+        result = barcodeMap.get(`0${cleanCode}`);
+        if (result) return result;
 
-        const packMatch = products.find(p => p && isMatch(p.packBarcode));
-        if (packMatch) return { product: packMatch, type: 'pack' };
-
-        const caseMatch = products.find(p => p && isMatch(p.caseBarcode));
-        if (caseMatch) return { product: caseMatch, type: 'case' };
+        // Try removing leading zero
+        if (cleanCode.startsWith('0')) {
+            result = barcodeMap.get(cleanCode.substring(1));
+            if (result) return result;
+        }
 
         return undefined;
-    }, [products]);
+    }, [barcodeMap]);
 
     const value = React.useMemo(() => ({
         products,
+        productMap,
         loading,
         connectionStatus,
         getProductByBarcode,
@@ -616,7 +744,7 @@ export const ProductProvider = ({ children }) => {
         resetShowInStore,
         recordWaste
     }), [
-        products, loading, connectionStatus, getProductByBarcode, addProduct, updateProduct, deleteProduct,
+        products, productMap, loading, connectionStatus, getProductByBarcode, addProduct, updateProduct, deleteProduct,
         addStock, deductStock, withdrawStock, resetProductSales, clearAllProducts,
         resetAllProductVisibility, updateProductOrder, bulkUpdateVisibilityByImage,
         bulkAutoCategorize, resetShowInStore, recordWaste

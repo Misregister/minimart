@@ -18,6 +18,7 @@ const Dashboard = () => {
     const orderContext = useOrder();
 
     const products = productContext?.products || [];
+    const productMap = productContext?.productMap; // O(1) Lookup Map
     const { orders: globalOrders } = orderContext;
     const customers = customerContext?.customers || [];
     const t = languageContext?.t || ((k) => k);
@@ -29,11 +30,11 @@ const Dashboard = () => {
     const [activeOrders, setActiveOrders] = useState([]); // Delivery Orders
     const [isLoadingTxs, setIsLoadingTxs] = useState(true);
 
-    // Auto-refresh every 5 seconds (fallback)
+    // Auto-refresh every 30 seconds instead of 5 (much better for performance)
     useEffect(() => {
         const interval = setInterval(() => {
             setLastUpdate(Date.now());
-        }, 5000);
+        }, 30000);
         return () => clearInterval(interval);
     }, []);
 
@@ -116,8 +117,8 @@ const Dashboard = () => {
                     let cost = Number(item.cost);
 
                     // If cost is missing or dynamic lookup needed (e.g. current product cost)
-                    if (isNaN(cost) || cost === 0) {
-                        const product = products.find(p => p.id === (item.originalId || item.id));
+                    if ((isNaN(cost) || cost === 0) && productMap) {
+                        const product = productMap.get(item.originalId || item.id);
                         // Adjusted cost based on unit type
                         if (product) {
                             if (item.isCase) cost = Number(product.caseCost || (product.cost * (product.caseSize || 1)));
@@ -173,8 +174,8 @@ const Dashboard = () => {
 
                     // Profit calc for map
                     let cost = Number(item.cost);
-                    if (isNaN(cost) || cost === 0) {
-                        const product = products.find(p => p.id === pid);
+                    if ((isNaN(cost) || cost === 0) && productMap) {
+                        const product = productMap.get(pid);
                         if (product) {
                             if (item.isCase) cost = Number(product.caseCost || (product.cost * (product.caseSize || 1)));
                             else if (item.isPack) cost = Number(product.packCost || (product.cost * (product.packSize || 1)));
@@ -216,7 +217,7 @@ const Dashboard = () => {
                         const itemTotal = (parseFloat(item.price) || 0) * (parseFloat(item.quantity) || 0);
                         const pid = item.originalId || item.id;
                         // Find product to get category
-                        const product = products.find(p => p.id === pid);
+                        const product = productMap?.get(pid);
                         const category = product?.category || 'Uncategorized';
                         salesByCategory[category] = (salesByCategory[category] || 0) + itemTotal;
                     });
@@ -329,7 +330,7 @@ const Dashboard = () => {
                 deliveryStatusCounts: { pending: 0, preparing: 0, shipping: 0, delivered: 0, archived: 0 }
             };
         }
-    }, [dateRange, viewMode, activeTransactions, activeOrders, products, lastUpdate]);
+    }, [dateRange, viewMode, activeTransactions, activeOrders, products, productMap, lastUpdate]);
 
     // 3. Safe Metrics
     const lowStockCount = useMemo(() => {
@@ -346,10 +347,10 @@ const Dashboard = () => {
 
     const productStats = useMemo(() => {
         try {
-            if (filteredData.productProfits) {
+            if (filteredData.productProfits && productMap) {
                 const sortedByProfit = Object.entries(filteredData.productProfits)
                     .map(([pid, profit]) => {
-                        const product = products.find(p => p.id === pid);
+                        const product = productMap.get(pid);
                         const soldQty = filteredData.allProductSales[pid] || 0;
                         const revenue = filteredData.productRevenues ? filteredData.productRevenues[pid] || 0 : 0;
                         return product ? { ...product, totalProfit: profit, soldQuantity: soldQty, totalSales: revenue } : null;
@@ -368,12 +369,14 @@ const Dashboard = () => {
         } catch {
             return { top5: [], bottom5: [] };
         }
-    }, [filteredData, products]);
+    }, [filteredData, productMap]);
 
     const { bestSellers, mostProfitableProducts, leastProfitableProducts } = useMemo(() => {
+        if (!productMap) return { bestSellers: [], mostProfitableProducts: [], leastProfitableProducts: [] };
+
         const bs = Object.entries(filteredData.allProductSales)
             .map(([pid, qty]) => {
-                const product = products.find(p => p.id === pid);
+                const product = productMap.get(pid);
                 const profit = filteredData.productProfits ? filteredData.productProfits[pid] || 0 : 0;
                 const revenue = filteredData.productRevenues ? filteredData.productRevenues[pid] || 0 : 0;
                 return product ? { ...product, soldQuantity: qty, totalProfit: profit, totalSales: revenue } : null;
@@ -387,7 +390,7 @@ const Dashboard = () => {
             mostProfitableProducts: productStats.top5,
             leastProfitableProducts: productStats.bottom5
         };
-    }, [filteredData, products, productStats]);
+    }, [filteredData, productMap, productStats]);
 
     // Yesterday's Sales Calculation from activeTransactions (Use passed buffer data)
     const yesterdayData = useMemo(() => {

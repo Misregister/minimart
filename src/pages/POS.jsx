@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useProduct } from '../contexts/ProductContext';
 import { useCart } from '../contexts/CartContext';
 import { useShift } from '../contexts/ShiftContext';
@@ -7,16 +7,17 @@ import Input from '../components/common/Input';
 import Button from '../components/common/Button';
 import PaymentModal from '../components/pos/PaymentModal';
 import ParkedBillsModal from '../components/pos/ParkedBillsModal';
-import { Search, ShoppingCart, Trash2, Plus, Minus, CreditCard, Clock, Bell, Monitor } from '../components/common/Icons';
+import { Search, ShoppingCart, Trash2, Plus, Minus, CreditCard, Clock, Bell, Monitor, Star, Grid, List as ListIcon, RefreshCw } from '../components/common/Icons';
 import { useOrder } from '../contexts/OrderContext';
 import QuickAddProductModal from '../components/pos/QuickAddProductModal';
-import ProductCard from '../components/pos/ProductCard'; // Imported
+import ProductCard from '../components/pos/ProductCard'; 
 import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
+import { useDebounce } from '../hooks/useDebounce';
 import { playBeep, playError, playClick } from '../utils/sound';
 import './POS.css';
 
 const POS = () => {
-    const { products, addProduct, updateProductOrder, getProductByBarcode, updateProduct } = useProduct();
+    const { products, productMap, addProduct, updateProductOrder, getProductByBarcode, updateProduct, loading, connectionStatus } = useProduct();
     const { t } = useLanguage();
     const {
         cart,
@@ -33,40 +34,72 @@ const POS = () => {
     const { newOrderAlert, acknowledgeNewOrder } = useOrder();
     const { isShiftOpen, openShift } = useShift();
 
-    // Sort products by posIndex
-    const sortedProducts = React.useMemo(() => {
-        return [...products].sort((a, b) => {
+    // Local state for search
+    const [searchTerm, setSearchTerm] = useState('');
+    const debouncedSearchTerm = useDebounce(searchTerm, 300);
+    const [activeCategory, setActiveCategory] = useState('All');
+    const [viewMode, setViewMode] = useState('grid');
+    const [isReorderMode, setIsReorderMode] = useState(false);
+    const [localOrderedProducts, setLocalOrderedProducts] = useState([]);
+    const [draggedProduct, setDraggedProduct] = useState(null);
+    const [isPaymentOpen, setIsPaymentOpen] = useState(false);
+    const [isParkedBillsOpen, setIsParkedBillsOpen] = useState(false);
+    const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+    const [scannedBarcode, setScannedBarcode] = useState('');
+    
+    const isScanningRef = useRef(false);
+    const searchInputRef = useRef(null);
+
+    // Optimized filtering and sorting
+    const filteredProducts = useMemo(() => {
+        if (!products) return [];
+        
+        // Final Filtered List
+        let result = products.filter(p => !p.isHero && (p.showInPOS === true || p.showInPOS === undefined));
+
+        // Search Filter
+        if (debouncedSearchTerm) {
+            const search = debouncedSearchTerm.toLowerCase();
+            result = result.filter(p => 
+                (p.name || '').toLowerCase().includes(search) || 
+                (p.barcode || '').toLowerCase().includes(search) ||
+                (p.category || '').toLowerCase().includes(search)
+            );
+        }
+
+        // Category Filter
+        if (activeCategory !== 'All') {
+            result = result.filter(p => p.category === activeCategory);
+        }
+
+        // Apply Sorting (only if not searching, or keep order for category)
+        result.sort((a, b) => {
             const indexA = typeof a.posIndex === 'number' ? a.posIndex : 999999;
             const indexB = typeof b.posIndex === 'number' ? b.posIndex : 999999;
             if (indexA !== indexB) return indexA - indexB;
-            // Fallback to createdAt or name
             return (a.name || '').localeCompare(b.name || '');
         });
-    }, [products]);
 
-    const [isReorderMode, setIsReorderMode] = useState(false);
-    const [reorderSelection, setReorderSelection] = useState(null);
-    const [localOrderedProducts, setLocalOrderedProducts] = useState([]);
+        return result;
+    }, [products, debouncedSearchTerm, activeCategory]);
 
-    React.useEffect(() => {
+    useEffect(() => {
         if (isReorderMode) {
-            setLocalOrderedProducts(sortedProducts.filter(p => p.showInPOS === true));
+            setLocalOrderedProducts(filteredProducts);
         }
-    }, [isReorderMode, sortedProducts]);
+    }, [isReorderMode, filteredProducts]);
 
-    const [draggedProduct, setDraggedProduct] = useState(null);
-
-    const handleDragStart = React.useCallback((e, product) => {
+    const handleDragStart = useCallback((e, product) => {
         setDraggedProduct(product);
         e.dataTransfer.effectAllowed = 'move';
     }, []);
 
-    const handleDragOver = React.useCallback((e) => {
+    const handleDragOver = useCallback((e) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
     }, []);
 
-    const handleDrop = React.useCallback((e, targetProduct) => {
+    const handleDrop = useCallback((e, targetProduct) => {
         e.preventDefault();
         if (!draggedProduct || draggedProduct.id === targetProduct.id) return;
 
@@ -84,18 +117,15 @@ const POS = () => {
         setDraggedProduct(null);
     }, [draggedProduct]);
 
-    const handleProductClick = React.useCallback((product) => {
+    const handleProductClick = useCallback((product) => {
         playClick();
         if (!isReorderMode) {
             addToCart(product);
         }
     }, [isReorderMode, addToCart]);
 
-
     const saveReorder = async () => {
         try {
-            // Map new indices - Include 'name' because it's a NOT NULL field in the DB
-            // and the 'upsert' operation requires all NOT NULL fields to be present.
             const updates = localOrderedProducts.map((p, index) => ({
                 id: p.id,
                 name: p.name,
@@ -110,8 +140,8 @@ const POS = () => {
         }
     };
 
-    const handleHideProduct = async (product, e) => {
-        e.stopPropagation();
+    const handleHideProduct = useCallback(async (product, e) => {
+        if (e) e.stopPropagation();
         if (window.confirm(`นำ "${product.name}" ออกจากหน้าต่างคิดเงิน?\n(สามารถเปิดแสดงใหม่ได้ที่เมนู "จัดการสินค้า")`)) {
             try {
                 // อัปเดตข้อมูลเพื่อให้หายไปจาก POS 
@@ -126,67 +156,21 @@ const POS = () => {
                 alert("เกิดข้อผิดพลาดในการซ่อนสินค้า");
             }
         }
-    };
+    }, [updateProduct, isReorderMode]);
 
-    const [searchTerm, setSearchTerm] = useState('');
-    const [activeCategory] = useState('All');
-    const [isPaymentOpen, setIsPaymentOpen] = useState(false);
-    const [isParkedBillsOpen, setIsParkedBillsOpen] = useState(false);
-
-    const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
-
-    const [scannedBarcode, setScannedBarcode] = useState('');
-    const isScanningRef = React.useRef(false);
-
-    const handleScan = React.useCallback((code) => {
-        // Prevent re-entry or double scan within short window
+    const handleScan = useCallback((code) => {
         if (isScanningRef.current) return;
-
-        // Prevent scanning if modals are open
         if (isPaymentOpen || isParkedBillsOpen) return;
 
         isScanningRef.current = true;
-        setTimeout(() => isScanningRef.current = false, 50); // 50ms debounce for rapid scanning
-
-        console.log("Scanned:", code);
+        setTimeout(() => isScanningRef.current = false, 50); 
 
         try {
-            // Use Centralized Lookup
             const result = getProductByBarcode(code);
-
             if (result) {
-                console.log("Found product:", result);
                 playBeep();
                 setIsQuickAddOpen(false);
-
-                const { product, type } = result;
-
-                if (type === 'case' && product.casePrice) {
-                    const caseItem = {
-                        ...product,
-                        id: `${product.id}_case`,
-                        originalId: product.id,
-                        name: `${product.name} (ลัง)`,
-                        price: product.casePrice,
-                        isCase: true,
-                        quantity: 1
-                    };
-                    addToCart(caseItem, 1);
-                } else if (type === 'pack' && product.packPrice) {
-                    const packItem = {
-                        ...product,
-                        id: `${product.id}_pack`,
-                        originalId: product.id,
-                        name: `${product.name} (แพ็ค)`,
-                        price: product.packPrice,
-                        isPack: true,
-                        quantity: 1
-                    };
-                    addToCart(packItem, 1);
-                } else {
-                    addToCart(product, 1);
-                }
-
+                addToCart(result.product, result.type === 'unit' ? 1 : (result.type === 'pack' ? 'pack' : 'case'));
                 setSearchTerm('');
             } else {
                 playError();
@@ -196,9 +180,8 @@ const POS = () => {
         } catch (err) {
             console.error("Scan error:", err);
             playError();
-            // Optional: Show user feedback
         }
-    }, [isPaymentOpen, isParkedBillsOpen, getProductByBarcode, addToCart]);
+    }, [getProductByBarcode, isPaymentOpen, isParkedBillsOpen, addToCart]);
 
     // Initialize Scanner Hook
     useBarcodeScanner(handleScan);
@@ -232,28 +215,7 @@ const POS = () => {
         }
     };
 
-    // Categories extracted previously but removed filtering
-
-    // Filter logic based on MODE
-    // If Reordering: use localOrderedProducts
-    // If Normal: use sortedProducts derived from Context
-    const activeList = isReorderMode ? localOrderedProducts : sortedProducts;
-
-    const posProducts = activeList.filter(p => p.showInPOS === true);
-
     const [displayLimit, setDisplayLimit] = useState(120);
-
-    const filteredProducts = React.useMemo(() => {
-        const list = posProducts.filter(p => {
-            if (!p) return false;
-            const matchesCategory = activeCategory === 'All' || p.category === activeCategory;
-            const matchesSearch = (p.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                (p.barcode || '').includes(searchTerm);
-            return matchesCategory && matchesSearch;
-        });
-        return list;
-    }, [posProducts, activeCategory, searchTerm]);
-
     const displayedProducts = filteredProducts.slice(0, displayLimit);
 
     const styles = React.useMemo(() => ({
@@ -618,6 +580,23 @@ const POS = () => {
                         icon={Search}
                         containerStyle={{ flex: 1 }}
                     />
+                    <div className="status-indicator-badges">
+                        {connectionStatus === 'syncing' ? (
+                            <div className="badge badge-syncing">
+                                <RefreshCw size={14} className="spin" /> {t('syncing') || 'Syncing...'}
+                            </div>
+                        ) : connectionStatus === 'cached' ? (
+                             <div className="badge badge-cached">
+                                <RefreshCw size={14} /> {t('offline') || 'Cached Mode'}
+                            </div>
+                        ) : (
+                             <div className="badge badge-connected">
+                                <div className="dot" /> {t('connected') || 'Live'}
+                            </div>
+                        )}
+                        {loading && <Loader2 size={16} className="spin text-primary" />}
+                    </div>
+
                     {!isReorderMode ? (
                         <Button variant="outline" onClick={() => setIsReorderMode(true)}>
                             {t('reorderMode')}

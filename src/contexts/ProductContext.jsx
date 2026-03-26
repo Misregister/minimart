@@ -703,12 +703,13 @@ export const ProductProvider = ({ children }) => {
         bulkUpdateVisibilityByImage,
         bulkAutoCategorize,
         resetShowInStore,
-        recordWaste
+        recordWaste,
+        bulkDeductStock
     }), [
         products, productMap, loading, connectionStatus, getProductByBarcode, addProduct, updateProduct, deleteProduct,
         addStock, deductStock, withdrawStock, resetProductSales, clearAllProducts,
         resetAllProductVisibility, updateProductOrder, bulkUpdateVisibilityByImage,
-        bulkAutoCategorize, resetShowInStore, recordWaste
+        bulkAutoCategorize, resetShowInStore, recordWaste, bulkDeductStock
     ]);
 
     return (

@@ -228,7 +228,14 @@ const StoreCheckout = () => {
             navigate(`/store/tracking/${newOrder.id}`);
         } catch (error) {
             console.error("Order error:", error);
-            alert("เกิดข้อผิดพลาดในการสั่งซื้อ");
+            const errMsg = error?.message || "ไม่ทราบสาเหตุ";
+            
+            // Helpful messages for common errors
+            if (errMsg.includes('bucket') || errMsg.includes('storage')) {
+                alert(`เกิดข้อผิดพลาดในการอัปโหลดสลิป: ${errMsg}\n(แอดมิน: กรุณาตรวจสอบว่ามี Bucket "slips" ใน Supabase Storage และตั้งค่า Public / RLS แล้วหรือยัง)`);
+            } else {
+                alert(`เกิดข้อผิดพลาดในการสั่งซื้อ: ${errMsg}`);
+            }
         } finally {
             setIsSubmitting(false);
         }

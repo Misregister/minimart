@@ -36,3 +36,23 @@ CREATE INDEX IF NOT EXISTS idx_shifts_status ON shifts (status);
 CREATE INDEX IF NOT EXISTS idx_customers_name ON customers (name);
 
 -- ✅ เสร็จแล้ว! น่าจะเร็วขึ้น 2-5x ทันที
+
+-- =====================================================
+-- 📁 STORAGE BUCKET: สลิปโอนเงิน (slips)
+-- สำหรับแนบสลิปชำระเงินโอนของลูกค้า
+-- =====================================================
+
+-- 10. สร้าง Bucket ถ้ายังไม่มี
+insert into storage.buckets (id, name, public)
+values ('slips', 'slips', true)
+on conflict (id) do nothing;
+
+-- 11. อนุญาตให้ทุกคนอัปโหลดสลิปได้
+create policy "Public Upload Slips"
+on storage.objects for insert
+with check ( bucket_id = 'slips' );
+
+-- 12. อนุญาตให้ทุกคนดูสลิปได้ (สำหรับ Admin/ลูกค้า)
+create policy "Public View Slips"
+on storage.objects for select
+using ( bucket_id = 'slips' );

@@ -56,3 +56,20 @@ with check ( bucket_id = 'slips' );
 create policy "Public View Slips"
 on storage.objects for select
 using ( bucket_id = 'slips' );
+
+-- =====================================================
+-- 🛠️ COLUMN FIX: เพิ่มคอลัมน์ที่ขาดหายไปในตาราง orders
+-- สำหรับระบบ Store Checkout หน้าบ้าน
+-- =====================================================
+
+ALTER TABLE public.orders 
+ADD COLUMN IF NOT EXISTS customer JSONB,
+ADD COLUMN IF NOT EXISTS "deliveryTime" TEXT,
+ADD COLUMN IF NOT EXISTS "slipUrl" TEXT,
+ADD COLUMN IF NOT EXISTS type TEXT DEFAULT 'store',
+ADD COLUMN IF NOT EXISTS date TIMESTAMP WITH TIME ZONE,
+ADD COLUMN IF NOT EXISTS "paymentStatus" TEXT DEFAULT 'pending',
+ADD COLUMN IF NOT EXISTS items JSONB,
+ADD COLUMN IF NOT EXISTS total NUMERIC,
+ADD COLUMN IF NOT EXISTS "paymentMethod" TEXT;
+

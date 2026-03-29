@@ -106,14 +106,14 @@ const OrderManager = () => {
             )}
 
             <div className="order-customer" style={{ marginTop: '8px' }}>
-                {order.customerName}
-                <span style={{ fontSize: '0.8rem', color: '#6b7280', fontWeight: 'normal' }}> ({order.customerPhone})</span>
+                {order.customer?.name || order.customerName || 'ไม่ระบุชื่อผู้รับ'}
+                <span style={{ fontSize: '0.8rem', color: '#6b7280', fontWeight: 'normal' }}> ({order.customer?.phone || order.customerPhone || '-'})</span>
             </div>
 
             <div className="order-address">
                 <MapPin size={12} style={{ display: 'inline', marginRight: '4px' }} />
-                {order.shippingAddress}
-                {order.addressMemo && <span style={{ color: '#ef4444' }}> ({order.addressMemo})</span>}
+                {order.customer?.address || order.shippingAddress || 'ไม่ระบุที่อยู่จัดส่ง'}
+                {(order.customer?.memo || order.addressMemo) && <span style={{ color: '#ef4444', marginLeft: '4px' }}>** {order.customer?.memo || order.addressMemo} **</span>}
             </div>
 
             <div className="order-items-preview">

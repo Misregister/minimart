@@ -8,8 +8,9 @@ const OrderDetailsModal = ({ isOpen, onClose, order }) => {
 
     if (!order) return null;
 
-    const googleMapsUrl = order.location
-        ? `https://www.google.com/maps/search/?api=1&query=${order.location.lat},${order.location.lng}`
+    const location = order.customer?.location || order.location;
+    const googleMapsUrl = location
+        ? `https://www.google.com/maps/search/?api=1&query=${location.lat},${location.lng}`
         : null;
 
     return (
@@ -24,12 +25,12 @@ const OrderDetailsModal = ({ isOpen, onClose, order }) => {
                 <div className="detail-section">
                     <div className="detail-row">
                         <User size={18} className="text-muted" />
-                        <span className="font-bold">{order.customerName}</span>
+                        <span className="font-bold">{order.customer?.name || order.customerName || 'ไม่ระบุชื่อ'}</span>
                     </div>
                     <div className="detail-row">
                         <Phone size={18} className="text-muted" />
-                        <a href={`tel:${order.customerPhone}`} className="phone-link">
-                            {order.customerPhone}
+                        <a href={`tel:${order.customer?.phone || order.customerPhone}`} className="phone-link">
+                            {order.customer?.phone || order.customerPhone || '-'}
                         </a>
                     </div>
                 </div>
@@ -45,10 +46,10 @@ const OrderDetailsModal = ({ isOpen, onClose, order }) => {
                         <MapPin size={20} className="text-primary" style={{ marginTop: '4px' }} />
                         <div>
                             <div className="font-bold mb-1">ที่อยู่จัดส่ง</div>
-                            <div style={{ fontSize: '1.1rem', lineHeight: '1.75' }}>{order.shippingAddress}</div>
-                            {order.addressMemo && (
+                            <div style={{ fontSize: '1.1rem', lineHeight: '1.75' }}>{order.customer?.address || order.shippingAddress || 'ไม่ระบุที่อยู่จัดส่ง'}</div>
+                            {(order.customer?.memo || order.addressMemo) && (
                                 <div style={{ color: '#ef4444', marginTop: '4px', fontSize: '1.25rem', fontWeight: 600 }}>
-                                    ** {order.addressMemo} **
+                                    ** {order.customer?.memo || order.addressMemo} **
                                 </div>
                             )}
                         </div>

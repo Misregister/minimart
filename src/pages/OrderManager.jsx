@@ -54,7 +54,7 @@ const OrderManager = () => {
             if (currentStatus === 'pending' && nextStatus === 'preparing') {
                 const order = orders.find(o => o.id === orderId);
                 if (order) {
-                    for (const item of order.items) {
+                    for (const item of (order.items || [])) {
                         let deductAmount = item.quantity;
                         if (item.isPack) deductAmount = item.quantity * (item.packSize || 1);
                         if (item.isCase) deductAmount = item.quantity * (item.caseSize || 1);
@@ -117,7 +117,7 @@ const OrderManager = () => {
             </div>
 
             <div className="order-items-preview">
-                {order.items.map(item => (
+                {(order.items || []).map(item => (
                     <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <span>{item.quantity} x {item.name}</span>
                     </div>
@@ -201,7 +201,7 @@ const OrderManager = () => {
 
         try {
             // 1. Restock Items
-            for (const item of order.items) {
+            for (const item of (order.items || [])) {
                 let restockAmount = item.quantity;
                 // Calculate raw units if it was a pack/case
                 if (item.isPack) restockAmount = item.quantity * (item.packSize || 1);
